@@ -10,6 +10,12 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: dashboard
+    description: Management dashboard aggregates
+  - name: reports
+    description: Reproducible daily management reports
+  - name: source-files
+    description: Workbook registry and ingestion status
 paths:
   /healthz:
     get:
@@ -24,7 +30,135 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [dashboard]
+      summary: Get the management dashboard
+      parameters:
+        - $ref: "#/components/parameters/ProductionDate"
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+  /reports/daily/{productionDate}:
+    get:
+      operationId: getDailyReport
+      tags: [reports]
+      summary: Get a daily management report
+      parameters:
+        - $ref: "#/components/parameters/ProductionDatePath"
+      responses:
+        "200":
+          description: Daily report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyReport"
+        "404":
+          description: Report not available
+  /reports/daily/{productionDate}/lineage:
+    get:
+      operationId: getDailyReportLineage
+      tags: [reports]
+      summary: Get source lineage for a daily report
+      parameters:
+        - $ref: "#/components/parameters/ProductionDatePath"
+      responses:
+        "200":
+          description: Lineage references
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LineageReference"
+  /source-files:
+    get:
+      operationId: listSourceFiles
+      tags: [source-files]
+      summary: List source files and their processing status
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: ["string", "null"]
+            enum: [RECEIVED, HASHED, PARSING, MAPPING, VALIDATING, PROCESSED, WARNING, FAILED, DUPLICATE]
+        - name: limit
+          in: query
+          schema:
+            type: number
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        "200":
+          description: Source file registry rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SourceFile"
+  /source-files/{fileId}:
+    get:
+      operationId: getSourceFile
+      tags: [source-files]
+      summary: Get source file metadata and validation issues
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Source file detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceFileDetail"
+        "404":
+          description: Source file not found
+  /source-files/upload:
+    post:
+      operationId: uploadSourceFile
+      tags: [source-files]
+      summary: Upload an Excel source file
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SourceFileUpload"
+      responses:
+        "202":
+          description: File accepted for processing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceFile"
+        "400":
+          description: Unsupported or invalid upload
 components:
+  parameters:
+    ProductionDate:
+      name: date
+      in: query
+      description: Factory-local production date; defaults to the latest available date
+      schema:
+        type: string
+        format: date
+    ProductionDatePath:
+      name: productionDate
+      in: path
+      required: true
+      schema:
+        type: string
+        format: date
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +167,265 @@ components:
           type: string
       required:
         - status
+    DashboardSummary:
+      type: object
+      required: [factory, productionDate, dataStatus, kpis, exceptions, trend, ingestion]
+      properties:
+        factory:
+          type: string
+        productionDate:
+          type: string
+          format: date
+        dataStatus:
+          type: string
+          enum: [COMPLETE, PARTIAL, UNAVAILABLE]
+        kpis:
+          type: array
+          items:
+            $ref: "#/components/schemas/KpiCard"
+        exceptions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExceptionSummary"
+        trend:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrendPoint"
+        ingestion:
+          $ref: "#/components/schemas/IngestionSummary"
+    KpiCard:
+      type: object
+      required: [code, label, value, unit, status, comparisonLabel, comparisonValue, available]
+      properties:
+        code:
+          type: string
+        label:
+          type: string
+        value:
+          type: ["number", "null"]
+        unit:
+          type: string
+        status:
+          type: string
+          enum: [GOOD, WATCH, CRITICAL, UNAVAILABLE]
+        comparisonLabel:
+          type: string
+        comparisonValue:
+          type: ["number", "null"]
+        available:
+          type: boolean
+        sourceCount:
+          type: number
+          minimum: 0
+    ExceptionSummary:
+      type: object
+      required: [id, severity, title, detail, kpiCode, acknowledged]
+      properties:
+        id:
+          type: string
+        severity:
+          type: string
+          enum: [INFO, WARNING, CRITICAL]
+        title:
+          type: string
+        detail:
+          type: string
+        kpiCode:
+          type: string
+        acknowledged:
+          type: boolean
+    TrendPoint:
+      type: object
+      required: [date, recovery, caneCrushed, downtime]
+      properties:
+        date:
+          type: string
+          format: date
+        recovery:
+          type: ["number", "null"]
+        caneCrushed:
+          type: ["number", "null"]
+        downtime:
+          type: ["number", "null"]
+    IngestionSummary:
+      type: object
+      required: [processed, warnings, failed, lastUpdated]
+      properties:
+        processed:
+          type: number
+        warnings:
+          type: number
+        failed:
+          type: number
+        lastUpdated:
+          type: string
+          format: date-time
+    DailyReport:
+      type: object
+      required: [id, factory, productionDate, reportVersion, executiveSummary, scorecard, exceptions, sources]
+      properties:
+        id:
+          type: string
+        factory:
+          type: string
+        productionDate:
+          type: string
+          format: date
+        reportVersion:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+        executiveSummary:
+          type: string
+        scorecard:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportKpi"
+        exceptions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExceptionSummary"
+        downtime:
+          type: array
+          items:
+            $ref: "#/components/schemas/DowntimeContributor"
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/LineageReference"
+    ReportKpi:
+      type: object
+      required: [code, label, today, unit, yesterday, baseline, baselineLabel, status]
+      properties:
+        code:
+          type: string
+        label:
+          type: string
+        today:
+          type: ["number", "null"]
+        unit:
+          type: string
+        yesterday:
+          type: ["number", "null"]
+        baseline:
+          type: ["number", "null"]
+        baselineLabel:
+          type: string
+        status:
+          type: string
+          enum: [GOOD, WATCH, CRITICAL, UNAVAILABLE]
+    DowntimeContributor:
+      type: object
+      required: [label, hours, share]
+      properties:
+        label:
+          type: string
+        hours:
+          type: number
+        share:
+          type: number
+    LineageReference:
+      type: object
+      required: [kpiCode, canonicalField, fileId, filename, sheet, sourceRow, sourceColumn, rawValue, formula]
+      properties:
+        kpiCode:
+          type: string
+        canonicalField:
+          type: string
+        fileId:
+          type: string
+        filename:
+          type: string
+        sheet:
+          type: string
+        sourceRow:
+          type: number
+        sourceColumn:
+          type: string
+        rawValue:
+          type: string
+        formula:
+          type: string
+    SourceFile:
+      type: object
+      required: [id, filename, reportType, reportingDate, status, uploadedAt, sizeBytes, sha256, synthetic]
+      properties:
+        id:
+          type: string
+        filename:
+          type: string
+        reportType:
+          type: string
+        reportingDate:
+          type: ["string", "null"]
+          format: date
+        status:
+          type: string
+          enum: [RECEIVED, HASHED, PARSING, MAPPING, VALIDATING, PROCESSED, WARNING, FAILED, DUPLICATE]
+        uploadedAt:
+          type: string
+          format: date-time
+        sizeBytes:
+          type: number
+        sha256:
+          type: string
+        synthetic:
+          type: boolean
+        issueCount:
+          type: number
+    SourceFileDetail:
+      allOf:
+        - $ref: "#/components/schemas/SourceFile"
+        - type: object
+          required: [sheets, issues, processingHistory]
+          properties:
+            sheets:
+              type: array
+              items:
+                type: string
+            issues:
+              type: array
+              items:
+                $ref: "#/components/schemas/ValidationIssue"
+            processingHistory:
+              type: array
+              items:
+                $ref: "#/components/schemas/ProcessingEvent"
+    ValidationIssue:
+      type: object
+      required: [severity, code, message]
+      properties:
+        severity:
+          type: string
+          enum: [INFO, WARNING, ERROR]
+        code:
+          type: string
+        message:
+          type: string
+        location:
+          type: ["string", "null"]
+    ProcessingEvent:
+      type: object
+      required: [status, at]
+      properties:
+        status:
+          type: string
+        at:
+          type: string
+          format: date-time
+        note:
+          type: ["string", "null"]
+    SourceFileUpload:
+      type: object
+      required: [filename, sizeBytes]
+      properties:
+        filename:
+          type: string
+          minLength: 1
+        sizeBytes:
+          type: number
+          minimum: 0
+        contentType:
+          type: ["string", "null"]
 

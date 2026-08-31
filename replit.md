@@ -1,6 +1,6 @@
-# [Project name]
+# Sugar Factory Intelligence
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+An operational dashboard that turns sugar-mill source reports into a traceable daily management view.
 
 ## Run & Operate
 
@@ -22,23 +22,35 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/sugar-factory-dashboard` — React/Vite dashboard and route-level UI
+- `artifacts/api-server` — shared Express API for dashboard, reports, lineage, and source registry
+- `lib/api-spec/openapi.yaml` — source of truth for API contracts
+- `lib/db/src/schema` — source of truth for PostgreSQL tables
+- `ARCHITECTURE.md`, `ROADMAP.md`, `DATA_MODEL.md`, `PHASE_1_SPEC.md` — product and implementation plans
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Phase 1 is a modular monolith; the data-processing seams remain replaceable without premature microservices.
+- The frontend consumes generated API hooks rather than hand-written response types.
+- Demo rows are explicitly synthetic and scoped to a demo factory.
+- KPI values and source lineage are separate concepts so future deterministic calculations can be audited.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Daily management overview with six production KPIs, statuses, comparisons, trends, and exceptions
+- Daily report with downtime profile and KPI-to-source lineage
+- Source registry with processing state, validation issues, and history
+- Readiness surface for the operational contract
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+No standing preferences recorded.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Run API codegen after every OpenAPI change.
+- The dashboard Vite build needs `PORT` and `BASE_PATH`; managed workflows provide them automatically.
+- The current source-file intake registers metadata only; immutable object storage and real workbook bytes are the next ingestion slice.
 
 ## Pointers
 

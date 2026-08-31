@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Sugar Factory Intelligence"
+description = "A trustworthy operations dashboard for sugar factory managers to review daily production KPIs, exceptions, ingestion status, and source traceability from Excel reports."
+version = "1.0.0"
+id = "artifacts/sugar-factory-dashboard"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21478
+
+[services.development]
+run = "pnpm --filter @workspace/sugar-factory-dashboard run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/sugar-factory-dashboard", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/sugar-factory-dashboard/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21478"
+BASE_PATH = "/"

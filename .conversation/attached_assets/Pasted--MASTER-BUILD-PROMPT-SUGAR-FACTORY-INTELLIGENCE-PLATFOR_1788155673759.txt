@@ -1,0 +1,1486 @@
+# MASTER BUILD PROMPT — SUGAR FACTORY INTELLIGENCE PLATFORM
+
+You are the lead software architect, senior backend engineer, senior frontend engineer, data engineer, DevOps engineer, QA engineer, and product manager for this project.
+
+You are building a production-quality **Sugar Factory Intelligence Platform** based on the product specification below.
+
+Your job is NOT to create a superficial demo.
+
+Your job is to build the foundation of a real SaaS product that can ingest real Indian sugar-mill Excel files, preserve the original source data, normalize different workbook formats into a canonical factory schema, calculate deterministic KPIs, detect anomalies, generate an auditable daily management report, and eventually support an AI factory analyst.
+
+---
+
+# 1. PRODUCT VISION
+
+A sugar mill produces many Excel workbooks every day.
+
+Typical reports include:
+
+* Production
+* Cane Crushing
+* Sugar
+* Recovery
+* Quality
+* Downtime
+* Boiler
+* Steam
+* Power Generation
+* Power Used
+* Maintenance
+* Inventory
+* Chemicals
+* Dispatch
+* Shift Log
+* Laboratory
+
+The platform must turn these fragmented Excel files into:
+
+> **One reliable, traceable daily intelligence report for factory management.**
+
+The factory should NOT need to change its existing workflow.
+
+Files can arrive through:
+
+* Web upload
+* Watched folder
+* Factory email attachment
+
+The fundamental product principle is:
+
+> **Files land → intelligence appears.**
+
+The platform must preserve every original file and make every reported number traceable back to its source.
+
+The product is deliberately sequenced:
+
+PHASE 1:
+Automated Daily Report
+
+PHASE 2:
+Factory Intelligence
+
+PHASE 3:
+AI Factory Analyst
+
+PHASE 4:
+Predictive Intelligence
+
+Do NOT prematurely build Phase 3 or Phase 4 before the Phase 1 data foundation is reliable.
+
+---
+
+# 2. NON-NEGOTIABLE ENGINEERING PRINCIPLE
+
+The hardest and most valuable part of this product is the data layer.
+
+DO NOT build:
+
+"LLM + Excel files = chatbot"
+
+Instead build:
+
+Raw Files
+→ File Registry
+→ Hash / Deduplication
+→ Parsing
+→ Column / Sheet Mapping
+→ Validation
+→ Canonical Factory Schema
+→ Deterministic KPI Engine
+→ Historical Baselines
+→ Rule-Based Anomaly Detection
+→ Daily Report
+→ Dashboard
+→ AI layer later
+
+The AI must NEVER become the source of truth for numerical calculations.
+
+For example:
+
+Recovery = Sugar Produced / Cane Crushed
+
+This must be calculated deterministically in SQL/Python.
+
+The LLM may explain the result.
+
+The LLM may NOT invent or calculate critical factory numbers when deterministic data exists.
+
+Every AI-generated statement should ultimately be grounded in structured data and/or source reports.
+
+---
+
+# 3. TECHNOLOGY STACK
+
+Use a boring, reliable architecture.
+
+Preferred stack:
+
+Frontend:
+
+* Next.js
+* TypeScript
+* Tailwind CSS
+* Modern responsive dashboard UI
+
+Backend:
+
+* Python
+* FastAPI
+
+Data processing:
+
+* Pandas
+* OpenPyXL
+* SQLAlchemy
+* Pydantic
+
+Database:
+
+* PostgreSQL
+
+Vector search:
+
+* pgvector
+
+Background processing:
+
+* Celery
+* Redis
+
+Storage:
+
+* S3-compatible object storage
+
+Authentication:
+
+* Secure session/JWT-based authentication
+* Role-based access control
+
+Deployment:
+
+* Docker
+* Environment-variable based configuration
+* Cloud-agnostic architecture
+
+Testing:
+
+* Pytest
+* Frontend tests where appropriate
+* Integration tests for ingestion pipeline
+
+The architecture must allow individual services to be replaced later.
+
+DO NOT introduce unnecessary microservices.
+
+Start as a well-structured modular monolith unless there is a compelling technical reason otherwise.
+
+---
+
+# 4. DEVELOPMENT RULE
+
+DO NOT attempt to build the entire application in one giant implementation.
+
+Work in phases.
+
+Before writing significant code:
+
+1. Inspect the repository.
+2. Create/update the architecture document.
+3. Create/update the implementation roadmap.
+4. Identify dependencies.
+5. Identify assumptions.
+6. Identify what information is missing.
+7. Build the smallest working slice.
+8. Test it.
+9. Only then continue.
+
+After every major phase:
+
+* Run tests.
+* Run linting/type checks.
+* Verify database migrations.
+* Verify the application starts cleanly.
+* Verify the feature manually.
+* Update documentation.
+* Record remaining technical debt.
+
+NEVER silently make a business assumption when the specification does not provide enough information.
+
+Instead:
+
+* mark the assumption clearly
+* make the relevant value configurable
+* document it
+
+---
+
+# 5. PHASE 0 — PROJECT FOUNDATION
+
+First create a professional repository structure.
+
+Suggested structure:
+
+/frontend
+/backend
+/backend/app
+/backend/app/api
+/backend/app/core
+/backend/app/models
+/backend/app/schemas
+/backend/app/services
+/backend/app/ingestion
+/backend/app/kpi
+/backend/app/anomaly
+/backend/app/reports
+/backend/app/auth
+/backend/app/audit
+/backend/tests
+/frontend/app
+/frontend/components
+/frontend/lib
+/frontend/types
+/docs
+/scripts
+/docker
+
+Create:
+
+* README.md
+* ARCHITECTURE.md
+* ROADMAP.md
+* DEVELOPMENT.md
+* .env.example
+* Docker configuration
+* database migration system
+* test configuration
+* linting configuration
+
+The application must start locally with documented commands.
+
+---
+
+# 6. MULTI-TENANT MODEL
+
+Design the system so multiple factories can eventually use the platform.
+
+Core hierarchy:
+
+Organization
+→ Factory
+→ Department
+→ Production Day
+→ Source Files
+→ Structured Data
+→ KPIs
+→ Alerts
+→ Reports
+
+Do not hard-code one factory into the database architecture.
+
+However, Phase 1 should remain simple enough to deploy for one factory.
+
+---
+
+# 7. USER ROLES
+
+Implement role-based permissions.
+
+At minimum:
+
+SUPER_ADMIN
+FACTORY_ADMIN
+PLANT_HEAD
+MANAGER
+ANALYST
+VIEWER
+
+Permissions should control:
+
+* uploading files
+* viewing raw files
+* viewing dashboards
+* viewing reports
+* managing mappings
+* managing KPI definitions
+* managing anomaly thresholds
+* managing users
+* viewing audit logs
+* asking AI questions later
+
+Do not rely purely on frontend hiding.
+
+Authorization must be enforced on the backend.
+
+---
+
+# 8. FILE INGESTION SYSTEM
+
+This is one of the most important components.
+
+The system must accept Excel files.
+
+Supported initially:
+
+* .xlsx
+* .xls where technically practical
+
+For every incoming file:
+
+1. Receive file.
+2. Calculate SHA-256 hash.
+3. Check whether the exact file already exists.
+4. If duplicate, do not process it twice.
+5. Store the original file immutably.
+6. Create a file registry record.
+7. Record metadata.
+8. Parse workbook.
+9. Detect sheets.
+10. Inspect headers.
+11. Detect likely report type.
+12. Map the file into the canonical schema.
+13. Validate.
+14. Store structured data.
+15. Record processing status.
+16. Record errors/warnings.
+17. Preserve complete lineage.
+
+Raw files must NEVER be overwritten.
+
+Raw files must NEVER be silently deleted.
+
+---
+
+# 9. FILE REGISTRY
+
+Create a proper file registry.
+
+At minimum store:
+
+* file_id
+* factory_id
+* filename
+* original_filename
+* sha256
+* file_size
+* upload_timestamp
+* source
+* report_type
+* reporting_date
+* processing_status
+* processing_started_at
+* processing_completed_at
+* parser_version
+* mapping_version
+* validation_status
+* error_message
+* storage_location
+
+Processing statuses should include something similar to:
+
+RECEIVED
+HASHED
+PARSING
+MAPPING
+VALIDATING
+PROCESSED
+WARNING
+FAILED
+DUPLICATE
+
+---
+
+# 10. CANONICAL SCHEMA
+
+Do NOT assume that every factory workbook uses the same:
+
+* column names
+* sheet names
+* date formats
+* units
+* spelling
+* abbreviations
+* report layouts
+
+Create a canonical internal schema.
+
+The mapping layer should translate:
+
+Factory-specific workbook
+→ Canonical representation
+
+For example:
+
+"Crushing"
+"Cane Crushed"
+"Cane Crushing"
+"CC"
+"Cane Crush T"
+
+could potentially map to:
+
+cane_crushed_tonnes
+
+But DO NOT blindly map based only on fuzzy matching.
+
+Mappings must be reviewable and configurable.
+
+Store:
+
+* source workbook
+* source sheet
+* source column
+* canonical field
+* transformation
+* unit conversion
+* confidence
+* mapping version
+
+---
+
+# 11. MAPPING SYSTEM
+
+Build a mapping engine that supports:
+
+* exact mappings
+* configurable mappings
+* alias mappings
+* controlled fuzzy matching
+* unit conversion
+* date normalization
+* numeric cleaning
+
+Example:
+
+"Date"
+"Production Date"
+"Prod Dt"
+"Day"
+
+→ production_date
+
+Example:
+
+"Cane Crushed"
+"Crushing"
+"Cane Qty"
+
+→ cane_crushed_tonnes
+
+Mappings must be editable by an authorized administrator.
+
+Never silently change an existing mapping.
+
+Version mapping configurations.
+
+---
+
+# 12. VALIDATION ENGINE
+
+Every ingestion must run validation.
+
+Validate:
+
+* required fields
+* data types
+* date validity
+* numeric validity
+* unit consistency
+* missing values
+* impossible values
+* duplicate rows
+* unexpected ranges
+* completeness
+* reporting date consistency
+
+Validation output should distinguish:
+
+ERROR
+WARNING
+INFO
+
+Example:
+
+Recovery = 250%
+
+→ ERROR
+
+Missing cane crushed value:
+
+→ ERROR if required for a KPI
+
+Unusual but possible production value:
+
+→ WARNING
+
+Do not silently discard bad data.
+
+---
+
+# 13. DATA LINEAGE / AUDITABILITY
+
+THIS IS NON-NEGOTIABLE.
+
+Every KPI must be traceable to:
+
+KPI
+→ calculation
+→ structured records
+→ source workbook
+→ source sheet
+→ source cell/row where practical
+
+For example:
+
+Recovery = 9.79%
+
+The UI should allow the user to understand:
+
+* which source files were used
+* which date
+* which values were used
+* what formula was applied
+
+Create lineage tables/models.
+
+The objective:
+
+> A manager must be able to audit any important number.
+
+---
+
+# 14. PRODUCTION KPI ENGINE — PHASE 1
+
+Start with production-related KPIs.
+
+At minimum support:
+
+* Cane Crushed
+* Sugar Produced
+* Recovery
+* Downtime
+* Power Generated
+* Steam Consumption
+
+The exact KPI formulas must be configurable/documented.
+
+Example:
+
+Recovery %
+
+= Sugar Produced / Cane Crushed × 100
+
+Do deterministic calculations in Python/SQL.
+
+Do not ask an LLM to calculate them.
+
+Each KPI should have:
+
+* KPI ID
+* name
+* description
+* formula
+* unit
+* frequency
+* source fields
+* calculation version
+* baseline method
+* status thresholds
+
+---
+
+# 15. HISTORICAL BASELINES
+
+For each KPI, calculate comparison values such as:
+
+* Yesterday
+* 7-day average
+* 30-day average
+* Current season
+* Prior season where data exists
+
+The system should clearly distinguish:
+
+ACTUAL
+BASELINE
+TARGET
+
+Do not fabricate historical values when insufficient data exists.
+
+Example:
+
+If only 3 days of data exist:
+
+7-day average should not pretend to represent 7 complete days.
+
+Show:
+
+"3-day available average"
+
+or explicitly indicate insufficient history.
+
+---
+
+# 16. ANOMALY ENGINE
+
+Phase 1 should use deterministic/rule-based anomaly detection.
+
+Examples:
+
+Recovery below baseline
+Downtime above baseline
+Production significantly below baseline
+Steam consumption unusually high
+Power generation unusually low
+
+Each alert should contain:
+
+* alert_id
+* factory
+* production_date
+* KPI
+* actual_value
+* baseline_value
+* deviation
+* severity
+* rule
+* explanation
+* supporting data
+* created_at
+* acknowledged status
+
+Support severity:
+
+INFO
+WARNING
+CRITICAL
+
+Rules must be configurable.
+
+---
+
+# 17. MANAGEMENT DAILY REPORT
+
+This is the primary product output.
+
+Generate a daily factory report.
+
+The report should prioritize:
+
+## EXECUTIVE SUMMARY
+
+What happened?
+
+## KPI SCORECARD
+
+Example:
+
+KPI | Today | Yesterday | 7-Day Avg | Status
+
+## EXCEPTIONS
+
+Only important issues.
+
+Example:
+
+Recovery below baseline
+
+4.1% below 7-day average.
+
+Likely drivers should be presented carefully and only when supported by data/rules.
+
+## DOWNTIME
+
+Break down major downtime contributors.
+
+## TRENDS
+
+Show relevant short-term trends.
+
+## SOURCE / AUDIT
+
+Allow the reader to trace numbers back to their sources.
+
+The report must NOT become a giant data dump.
+
+The philosophy is:
+
+> Exceptions first. Numbers second.
+
+---
+
+# 18. REPORT OUTPUTS
+
+Support:
+
+* HTML report
+* PDF-ready report
+* dashboard view
+* email delivery
+
+Generate reports automatically after the daily ingestion process completes.
+
+The report should be reproducible from the underlying data.
+
+Store report versions.
+
+---
+
+# 19. DASHBOARD
+
+Build a clean plant-management dashboard.
+
+The dashboard should show:
+
+### Top KPI cards
+
+* Cane Crushed
+* Sugar Produced
+* Recovery
+* Downtime
+* Power Generated
+* Steam Consumption
+
+Each card should show:
+
+* current value
+* unit
+* comparison
+* status
+
+### Exception section
+
+Show the most important issues first.
+
+### Trend section
+
+Show recent KPI history.
+
+### Source traceability
+
+Users should be able to drill from:
+
+KPI
+→ calculation
+→ underlying data
+→ source file
+
+Do not overload the UI.
+
+This is a management system, not a BI playground.
+
+---
+
+# 20. FILE MANAGEMENT UI
+
+Create an interface where authorized users can:
+
+* upload files
+* see processing status
+* inspect failed files
+* inspect warnings
+* see detected report type
+* view file metadata
+* view validation errors
+* view source files
+* see processing history
+
+Make ingestion failures understandable to a non-technical factory manager.
+
+---
+
+# 21. AUDIT LOG
+
+Record important actions:
+
+* login
+* logout
+* file upload
+* file processing
+* mapping change
+* KPI configuration change
+* anomaly rule change
+* report generation
+* report delivery
+* user permission changes
+* AI query later
+
+Audit logs should be immutable from the normal application UI.
+
+---
+
+# 22. PHASE 2 — FACTORY INTELLIGENCE
+
+Only start Phase 2 after Phase 1 works reliably.
+
+Add:
+
+* Quality
+* Energy
+* Maintenance
+* Downtime
+* Inventory
+* Chemicals
+* Dispatch
+* Laboratory
+* Steam
+* Power
+
+Expand the canonical schema.
+
+Add:
+
+* more dashboards
+* season-over-season comparisons
+* configurable KPI rules
+* advanced anomaly detection
+* cross-department relationships
+
+Examples:
+
+Recovery decline + cane quality decline
+
+Downtime increase + production decline
+
+Steam consumption increase + efficiency decline
+
+Power generation vs power usage
+
+Do not imply causality unless the data supports it.
+
+---
+
+# 23. PHASE 3 — AI FACTORY ANALYST
+
+Only build this after the structured data foundation is reliable.
+
+The AI analyst should support questions such as:
+
+"What happened to recovery yesterday?"
+
+"Why did recovery decline?"
+
+"How has downtime changed this season?"
+
+"When did we last see a similar recovery level?"
+
+"What were the biggest production issues this week?"
+
+The AI system should:
+
+1. Understand the question.
+2. Determine whether it needs SQL, document retrieval, or both.
+3. Query structured data where possible.
+4. Retrieve source reports where necessary.
+5. Perform deterministic calculations outside the LLM.
+6. Generate an explanation.
+7. Attach citations/source references.
+8. Clearly identify uncertainty.
+
+The AI must NEVER invent factory numbers.
+
+If information is unavailable:
+
+Say that it is unavailable.
+
+Do not guess.
+
+---
+
+# 24. AI ARCHITECTURE
+
+Use a hybrid approach:
+
+Structured question
+→ SQL
+
+Document question
+→ Retrieval
+
+Mixed question
+→ SQL + retrieval
+
+Then:
+
+Evidence
+→ LLM
+→ Explanation
+
+The LLM should be the reasoning/explanation layer, not the database.
+
+Use pgvector only where semantic retrieval is actually useful.
+
+Do not vectorize everything unnecessarily.
+
+---
+
+# 25. AI SOURCE CITATIONS
+
+Every AI answer that makes a factual claim about factory operations should provide source references.
+
+Example:
+
+"Recovery fell from 10.01% to 9.79%."
+
+Source:
+
+Production report — 18 Aug 2026
+Recovery sheet
+Source file: recovery_18082026.xlsx
+
+The user should be able to open the source information.
+
+---
+
+# 26. PHASE 4 — PREDICTIVE INTELLIGENCE
+
+Do NOT implement this during the initial build unless specifically requested.
+
+Future capabilities:
+
+* Predictive maintenance
+* Recovery prediction
+* Production forecasting
+* Energy optimisation
+* Cane procurement intelligence
+* Spare-parts intelligence
+
+Keep the architecture extensible enough that these can be added later.
+
+---
+
+# 27. SECURITY
+
+Implement:
+
+* password hashing
+* secure authentication
+* role-based authorization
+* input validation
+* file upload validation
+* file size limits
+* safe filename handling
+* protection against malicious workbook content
+* SQL injection protection
+* CSRF protection where applicable
+* secure secrets management
+* audit logs
+* tenant isolation
+
+Never expose raw storage credentials to the frontend.
+
+Never store secrets in source code.
+
+---
+
+# 28. OBSERVABILITY
+
+Build useful logging.
+
+Every ingestion pipeline should have a traceable processing lifecycle.
+
+Log:
+
+* file received
+* parser started
+* sheets detected
+* mapping started
+* validation started
+* validation completed
+* KPI calculation started
+* report generated
+* report delivered
+
+Errors should include enough context to debug them.
+
+---
+
+# 29. DATA QUALITY PRINCIPLES
+
+Follow these rules throughout the application:
+
+1. Raw data is immutable.
+2. Derived data is reproducible.
+3. KPI formulas are deterministic.
+4. Mapping is configurable.
+5. Every transformation is versioned.
+6. Every important number has lineage.
+7. Missing data is visible.
+8. Invalid data is not silently ignored.
+9. AI cannot override deterministic calculations.
+10. Never fabricate data.
+
+---
+
+# 30. DEMO DATA
+
+Create a clearly separated demo-data generator.
+
+Use realistic but explicitly synthetic data.
+
+Generate several days of:
+
+* cane crushing
+* sugar production
+* recovery
+* downtime
+* power generation
+* steam consumption
+
+Also generate sample Excel files that intentionally vary slightly in:
+
+* column names
+* sheet names
+* date formatting
+* ordering
+
+This is necessary to test the normalization layer.
+
+Clearly label demo data as synthetic.
+
+NEVER mix synthetic data with real production data.
+
+---
+
+# 31. TESTING STRATEGY
+
+Testing is mandatory.
+
+Create unit tests for:
+
+* file hashing
+* deduplication
+* Excel parsing
+* mapping
+* unit conversion
+* validation
+* KPI calculations
+* baseline calculations
+* anomaly rules
+* lineage
+* permissions
+
+Create integration tests for:
+
+Excel file
+→ ingestion
+→ normalization
+→ database
+→ KPI engine
+→ anomaly engine
+→ report
+
+Create an end-to-end test proving:
+
+A synthetic day's Excel files can be uploaded and produce the expected report.
+
+Include edge cases:
+
+* missing sheet
+* missing column
+* duplicate file
+* duplicate rows
+* invalid date
+* malformed numeric value
+* missing KPI input
+* unexpected units
+* extreme values
+* partial data
+
+---
+
+# 32. ACCEPTANCE TEST — THE MOST IMPORTANT TEST
+
+The application is NOT considered Phase 1 complete until this works:
+
+Given one realistic synthetic factory day containing multiple Excel workbooks:
+
+1. Upload files.
+2. Hash them.
+3. Store originals.
+4. Detect report types.
+5. Parse workbooks.
+6. Map fields.
+7. Validate data.
+8. Store canonical records.
+9. Calculate KPIs.
+10. Calculate historical baselines.
+11. Detect anomalies.
+12. Generate daily report.
+13. Display dashboard.
+14. Provide source traceability.
+15. Record the full audit trail.
+
+All of this must happen without manually editing the database.
+
+---
+
+# 33. UI / UX PRINCIPLES
+
+The target user is a factory manager.
+
+They are NOT a software engineer.
+
+Design for:
+
+* clarity
+* speed
+* trust
+* minimal clicks
+* obvious exceptions
+* readable numbers
+* strong hierarchy
+
+The homepage/dashboard should answer:
+
+1. How did the factory perform?
+2. What went wrong?
+3. How serious is it?
+4. What should I investigate?
+5. Where did this number come from?
+
+Avoid flashy AI gimmicks.
+
+Trust is more important than visual complexity.
+
+---
+
+# 34. DESIGN LANGUAGE
+
+Use a professional industrial SaaS aesthetic.
+
+Think:
+
+* industrial
+* operational
+* trustworthy
+* clean
+* information-dense but readable
+
+Avoid:
+
+* excessive gradients
+* meaningless animations
+* AI gimmick visuals
+* unnecessary 3D graphics
+* consumer-app styling
+
+The product should feel like software a plant head would trust at 6 AM.
+
+---
+
+# 35. PERFORMANCE
+
+Design for daily batch processing.
+
+The initial system does not need extreme real-time architecture.
+
+Prioritize:
+
+* reliability
+* correctness
+* traceability
+* predictable processing
+
+However, avoid architecture that prevents scaling to multiple factories later.
+
+---
+
+# 36. CONFIGURATION
+
+Factory-specific configuration must not require code changes.
+
+Examples:
+
+* factory name
+* departments
+* KPI thresholds
+* anomaly thresholds
+* mappings
+* units
+* reporting time
+* report recipients
+* report format
+* season dates
+
+Use configuration/database records wherever practical.
+
+---
+
+# 37. DOCUMENTATION
+
+Maintain:
+
+README.md
+ARCHITECTURE.md
+ROADMAP.md
+DATA_MODEL.md
+INGESTION.md
+KPI_DEFINITIONS.md
+MAPPING_GUIDE.md
+DEPLOYMENT.md
+SECURITY.md
+TESTING.md
+
+Documentation must stay synchronized with implementation.
+
+---
+
+# 38. ROADMAP EXECUTION
+
+Execute in this order.
+
+## STEP 1
+
+Repository + architecture + development environment.
+
+## STEP 2
+
+Database + migrations + authentication + factory/user model.
+
+## STEP 3
+
+File registry + immutable storage + SHA-256 hashing.
+
+## STEP 4
+
+Excel ingestion/parsing framework.
+
+## STEP 5
+
+Canonical schema + mapping engine.
+
+## STEP 6
+
+Validation engine.
+
+## STEP 7
+
+Production KPI engine.
+
+## STEP 8
+
+Historical baselines.
+
+## STEP 9
+
+Rule-based anomaly detection.
+
+## STEP 10
+
+Daily report generation.
+
+## STEP 11
+
+Dashboard.
+
+## STEP 12
+
+Audit/lineage interface.
+
+## STEP 13
+
+Automated daily pipeline.
+
+## STEP 14
+
+Email delivery.
+
+## STEP 15
+
+End-to-end testing.
+
+ONLY THEN:
+
+## STEP 16
+
+Phase 2 expansion.
+
+Then Phase 3 AI.
+
+Then Phase 4 predictive intelligence.
+
+---
+
+# 39. CRITICAL DEVELOPMENT BEHAVIOR
+
+Whenever you encounter ambiguity:
+
+DO NOT invent a complicated solution.
+
+Prefer:
+
+* simple
+* explicit
+* configurable
+* testable
+* replaceable
+
+Whenever you encounter a potentially incorrect data mapping:
+
+DO NOT silently accept it.
+
+Flag it for review.
+
+Whenever you encounter missing data:
+
+DO NOT create a fake value.
+
+Mark the KPI unavailable or incomplete.
+
+Whenever you use AI:
+
+Ask:
+
+"Could this be done deterministically?"
+
+If yes:
+
+Use deterministic code.
+
+If no:
+
+Use AI, but ground it in evidence.
+
+---
+
+# 40. WHAT NOT TO BUILD YET
+
+Do NOT spend significant development time on:
+
+* mobile apps
+* complex predictive models
+* autonomous factory control
+* complicated microservices
+* real-time IoT integrations
+* advanced optimization
+* fancy AI agents
+* unnecessary blockchain
+* unnecessary vector databases
+* elaborate notification systems
+
+The first milestone is simple:
+
+> Take real factory Excel → produce a correct, auditable daily management report.
+
+Everything else comes after that.
+
+---
+
+# 41. FIRST ACTION — DO THIS BEFORE CODING
+
+Before implementing the application, create:
+
+1. ARCHITECTURE.md
+2. ROADMAP.md
+3. DATA_MODEL.md
+4. PHASE_1_SPEC.md
+
+Then show me:
+
+* proposed architecture
+* proposed database schema
+* ingestion pipeline
+* canonical schema
+* KPI definitions
+* implementation sequence
+* major assumptions
+* risks
+
+DO NOT generate the entire application immediately.
+
+After the planning artifacts are created, begin implementing Phase 1 Step 1.
+
+---
+
+# 42. ITERATION LOOP
+
+For every implementation step:
+
+PLAN
+→ IMPLEMENT
+→ TEST
+→ REVIEW
+→ FIX
+→ DOCUMENT
+→ MOVE TO NEXT STEP
+
+Do not move forward when the previous step is fundamentally broken.
+
+At the end of each major step, provide a concise summary:
+
+COMPLETED
+TESTS
+KNOWN ISSUES
+NEXT STEP
+
+---
+
+# 43. DEFINITION OF DONE
+
+A feature is only DONE when:
+
+* code exists
+* tests exist
+* tests pass
+* error handling exists
+* authorization exists where relevant
+* database migrations work
+* documentation is updated
+* UI is usable where relevant
+* no critical console/backend errors remain
+* the feature works end-to-end
+
+Do not mark placeholder implementations as complete.
+
+If something is intentionally mocked, label it clearly as MOCK.
+
+---
+
+# 44. PRODUCT NORTH STAR
+
+Never lose sight of the actual product.
+
+We are NOT selling:
+
+"an AI chatbot."
+
+We are building:
+
+> **A reliable intelligence layer for sugar factories that converts existing operational Excel data into daily decisions.**
+
+The first product promise is:
+
+> **One pipeline. One truth. One report.**
+
+The ultimate vision is:
+
+> **Make the factory's daily data reliable, structured, and automatically understood.**
+
+Build the foundation first.
+
+Then build intelligence on top of it.
+
+---
+
+# START NOW
+
+Your first task is NOT to build everything.
+
+First inspect the existing Replit project.
+
+Then create:
+
+* ARCHITECTURE.md
+* ROADMAP.md
+* DATA_MODEL.md
+* PHASE_1_SPEC.md
+
+Then present the proposed architecture and implementation plan.
+
+After that, begin Phase 1 Step 1.
+
+Do not skip planning.
+Do not fabricate requirements.
+Do not prematurely build the AI analyst.
+
+Build the data foundation that makes the AI analyst trustworthy.
