@@ -353,9 +353,7 @@ export const SaveDailyOperationsBody = zod.object({
   "materials": zod.array(zod.object({
 
 }))
-}).and(zod.looseObject({
-
-}))
+})
 
 export const SaveDailyOperationsResponse = zod.object({
   "id": zod.string(),

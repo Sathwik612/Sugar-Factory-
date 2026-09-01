@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
@@ -9,6 +9,7 @@ import {
   Bell,
   Check,
   CheckCircle2,
+  ClipboardPenLine,
   ChevronRight,
   CircleHelp,
   Clock3,
@@ -22,10 +23,14 @@ import {
   LockKeyhole,
   LogOut,
   Menu,
+  Plus,
   RefreshCw,
   Settings2,
+  Send,
   ShieldCheck,
   SlidersHorizontal,
+  Save,
+  Trash2,
   Upload,
   X,
   XCircle,
@@ -123,6 +128,7 @@ function Shell({ children, user, logout }: { children: ReactNode; user: AuthUser
   const displayName = userDisplayName(user);
   const links = [
     { href: '/', label: 'Daily overview', icon: LayoutDashboard, match: location === '/' },
+    { href: '/daily-operations', label: 'Daily operations', icon: ClipboardPenLine, match: location.startsWith('/daily-operations') },
     { href: '/reports/latest', label: 'Daily reports', icon: BarChart3, match: location.startsWith('/reports') },
     { href: '/files', label: 'Source files', icon: FileSpreadsheet, match: location.startsWith('/files') },
     { href: '/settings', label: 'Readiness', icon: Settings2, match: location.startsWith('/settings') },
@@ -179,7 +185,7 @@ function Overview() {
   const critical = dashboard.exceptions?.filter((item: any) => item.severity === 'CRITICAL') ?? [];
   const warning = dashboard.exceptions?.filter((item: any) => item.severity !== 'CRITICAL') ?? [];
   return <div className="reveal">
-    <PageHeading eyebrow="Daily management view" title={dashboard.factory} detail={`Production date ${dateLabel(dashboard.productionDate)} · a single, traceable view of the latest available shift.`} action={<Link href={`/reports/${dashboard.productionDate}`} data-testid="link-open-daily-report" className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground shadow-sm transition hover:opacity-90">Open full report <ArrowRight size={16} /></Link>} />
+     <PageHeading eyebrow="Daily management view" title={dashboard.factory} detail={`Season 2025–26 · production date ${dateLabel(dashboard.productionDate)} · a single, traceable view of the latest available shift.`} action={<Link href={`/reports/${dashboard.productionDate}`} data-testid="link-open-daily-report" className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground shadow-sm transition hover:opacity-90">Open full report <ArrowRight size={16} /></Link>} />
     {dashboard.dataStatus !== 'COMPLETE' && <div data-testid="status-dashboard-data" className="mb-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"><AlertCircle className="mt-0.5 shrink-0" size={17} /><div><strong>{dashboard.dataStatus === 'PARTIAL' ? 'Partial data set.' : 'Data unavailable.'}</strong> Some measures may be missing until source validation completes.</div></div>}
     <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{dashboard.kpis?.map((kpi: any) => <KpiCard key={kpi.code} kpi={kpi} trend={dashboard.trend ?? []} />)}</section>
     <section className="mt-6 grid gap-6 xl:grid-cols-[1.5fr_1fr]">
@@ -253,13 +259,208 @@ function FileDetailPage() {
   return <div className="reveal"><PageHeading eyebrow="Source file detail" title={file.filename} detail={`${file.reportType} · ${dateLabel(file.reportingDate)} · ${bytesLabel(file.sizeBytes)}`} action={<Link href="/files" data-testid="link-back-files" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-bold transition hover:bg-secondary"><ArrowDownRight size={16} className="rotate-45" /> Source registry</Link>} /><div className="mb-6 flex flex-wrap items-center gap-3"><StatusPill status={file.status} /><span className="mono text-[10px] text-muted-foreground">SHA-256 {file.sha256}</span>{file.synthetic && <span className="rounded-full bg-secondary px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Synthetic fixture</span>}</div><div className="grid gap-6 xl:grid-cols-[.9fr_1.4fr]"><div className="space-y-6"><div className="panel rounded-2xl p-6"><div className="eyebrow text-primary">Workbook structure</div><h2 className="mt-1 text-lg font-bold">Available sheets</h2><div className="mt-5 space-y-2">{file.sheets?.map((sheet: string) => <div key={sheet} data-testid={`sheet-${sheet}`} className="flex items-center gap-3 rounded-lg border border-border/70 px-3.5 py-3"><FileSpreadsheet size={15} className="text-emerald-700" /><span className="text-sm font-semibold">{sheet}</span><Check size={14} className="ml-auto text-emerald-700" /></div>)}</div></div><div className="panel rounded-2xl p-6"><div className="eyebrow text-primary">Processing history</div><h2 className="mt-1 text-lg font-bold">Chain of custody</h2><div className="mt-5 space-y-0">{file.processingHistory?.map((event: any, index: number) => <div key={`${event.status}-${index}`} className="relative flex gap-3 pb-5 last:pb-0"><div className="relative flex w-4 justify-center"><div className={`z-10 mt-1.5 h-2.5 w-2.5 rounded-full ${index === file.processingHistory.length - 1 ? 'bg-primary ring-4 ring-primary/15' : 'bg-emerald-600'}`} />{index < file.processingHistory.length - 1 && <div className="absolute top-4 h-full w-px bg-border" />}</div><div><div className="flex items-center gap-2 text-sm font-bold">{event.status}<span className="mono text-[10px] font-normal text-muted-foreground">{timeLabel(event.at)}</span></div>{event.note && <p className="mt-1 text-xs text-muted-foreground">{event.note}</p>}</div></div>)}</div></div></div><div className="panel rounded-2xl p-6"><div className="flex items-start justify-between"><div><div className="eyebrow text-primary">Validation log</div><h2 className="mt-1 text-lg font-bold">Issues found in this file</h2></div><span data-testid="text-file-issue-count" className="mono text-2xl font-bold">{String(file.issues?.length ?? 0).padStart(2, '0')}</span></div>{file.issues?.length ? <div className="mt-5 overflow-hidden rounded-xl border border-border/70"><table className="w-full text-left text-xs"><thead className="bg-muted/50 text-[10px] uppercase tracking-wider text-muted-foreground"><tr><th className="px-4 py-3">Severity</th><th className="px-4 py-3">Message</th><th className="px-4 py-3">Location</th></tr></thead><tbody className="divide-y divide-border/70">{file.issues.map((issue: any, index: number) => <tr key={index} data-testid={`row-validation-issue-${index}`}><td className="px-4 py-3"><StatusPill status={issue.severity} /></td><td className="px-4 py-3 font-semibold">{issue.message}<div className="mono mt-1 text-[10px] font-normal text-muted-foreground">{issue.code}</div></td><td className="px-4 py-3 mono text-[10px] text-muted-foreground">{issue.location || '—'}</td></tr>)}</tbody></table></div> : <div className="mt-6 flex min-h-48 flex-col items-center justify-center rounded-xl border border-dashed border-emerald-300 bg-emerald-50/50 text-center"><CheckCircle2 size={25} className="text-emerald-700" /><div className="mt-3 text-sm font-bold text-emerald-900">No validation issues</div><p className="mt-1 text-xs text-emerald-800/70">This workbook passed all available checks.</p></div>}</div></div></div>;
 }
 
+type OperationsForm = {
+  productionDate: string;
+  season: string;
+  shift: string;
+  status: string;
+  production: Record<string, string | number | null>;
+  quality: Record<string, string | number | null>;
+  efficiency: Record<string, string | number | null>;
+  timeAccount: Record<string, string | number | null>;
+  stoppages: Array<Record<string, string>>;
+  energy: Record<string, string | number | null>;
+  materials: Array<Record<string, string | number>>;
+};
+
+const operationsInitial: OperationsForm = {
+  productionDate: '2026-08-30',
+  season: '2025-26',
+  shift: 'GENERAL',
+  status: 'DRAFT',
+  production: {
+    caneCrushed: 7210,
+    sugarProduced: 658,
+    sugarBagged: 640,
+    bagasse: 1025,
+    filterCake: 180,
+    molasses: 252,
+  },
+  quality: { brix: 19.2, pol: 15.8, purity: 82.3, caneQuality: 'Good' },
+  efficiency: { millExtraction: 94.6, boilingHouseEfficiency: 91.8, capacityUtilization: 87.2 },
+  timeAccount: { availableHours: 24, hoursWorked: 15.6, plannedMaintenance: 2.2, breakdown: 6.2, caneShortage: 0 },
+  stoppages: [{ cause: 'Boiler trip', startTime: '09:40', endTime: '11:10' }],
+  energy: { powerGenerated: 11220, powerUsed: 9380, steamConsumption: 3.46 },
+  materials: [{ material: 'Lime', quantity: 18.4, unit: 'kg/t cane' }],
+};
+
+const fieldClass = 'mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-semibold outline-none transition placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15';
+
+function DataField({
+  label,
+  value,
+  onChange,
+  type = 'number',
+  step = '0.1',
+  readOnly = false,
+}: {
+  label: string;
+  value: string | number | null | undefined;
+  onChange?: (value: string) => void;
+  type?: string;
+  step?: string;
+  readOnly?: boolean;
+}) {
+  return <label className="block text-xs font-bold text-foreground/75">{label}<input className={`${fieldClass} ${readOnly ? 'bg-muted/60 text-muted-foreground' : ''}`} type={type} step={step} value={value ?? ''} readOnly={readOnly} onChange={event => onChange?.(event.target.value)} /></label>;
+}
+
+function OperationsSection({ eyebrow, title, children }: { eyebrow: string; title: string; children: ReactNode }) {
+  return <section className="panel rounded-2xl p-5 sm:p-6"><div className="eyebrow text-primary">{eyebrow}</div><h2 className="mt-1 text-lg font-bold tracking-tight">{title}</h2><div className="mt-5 grid gap-4 sm:grid-cols-2">{children}</div></section>;
+}
+
+function OperationsPage() {
+  const [form, setForm] = useState<OperationsForm>(operationsInitial);
+  const [busy, setBusy] = useState<'DRAFT' | 'SUBMITTED' | null>(null);
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
+
+  const recovery = useMemo(() => {
+    const cane = Number(form.production.caneCrushed);
+    const sugar = Number(form.production.sugarProduced);
+    return cane > 0 && Number.isFinite(sugar) ? (sugar / cane) * 100 : null;
+  }, [form.production.caneCrushed, form.production.sugarProduced]);
+  const hoursLost = useMemo(() => {
+    const available = Number(form.timeAccount.availableHours);
+    const worked = Number(form.timeAccount.hoursWorked);
+    return Number.isFinite(available) && Number.isFinite(worked) ? Math.max(0, available - worked) : null;
+  }, [form.timeAccount.availableHours, form.timeAccount.hoursWorked]);
+  const powerExported = useMemo(() => {
+    const generated = Number(form.energy.powerGenerated);
+    const used = Number(form.energy.powerUsed);
+    return Number.isFinite(generated) && Number.isFinite(used) ? Math.max(0, generated - used) : null;
+  }, [form.energy.powerGenerated, form.energy.powerUsed]);
+
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/daily-operations/${form.productionDate}`, { credentials: 'include' })
+      .then(response => response.ok ? response.json() : null)
+      .then(record => {
+        if (!active || !record) return;
+        setForm(current => ({
+          ...current,
+          ...record,
+          production: { ...current.production, ...(record.production ?? {}) },
+          quality: { ...current.quality, ...(record.quality ?? {}) },
+          efficiency: { ...current.efficiency, ...(record.efficiency ?? {}) },
+          timeAccount: { ...current.timeAccount, ...(record.timeAccount ?? {}) },
+          energy: { ...current.energy, ...(record.energy ?? {}) },
+          stoppages: record.stoppages?.length ? record.stoppages : current.stoppages,
+          materials: record.materials?.length ? record.materials : current.materials,
+        }));
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [form.productionDate]);
+
+  const setSectionValue = (section: keyof Pick<OperationsForm, 'production' | 'quality' | 'efficiency' | 'timeAccount' | 'energy'>, key: string, value: string) => {
+    setForm(current => ({ ...current, [section]: { ...current[section], [key]: value } }));
+    setNotice('');
+    setError('');
+  };
+
+  const save = async (status: 'DRAFT' | 'SUBMITTED') => {
+    setBusy(status);
+    setNotice('');
+    setError('');
+    try {
+      const response = await fetch('/api/daily-operations', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, status }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.issues?.join(' ') || result.error || 'Could not save this entry.');
+      setForm(current => ({ ...current, ...result, status: result.status ?? status }));
+      setNotice(status === 'SUBMITTED' ? 'Submitted. The canonical KPIs and dashboard have been updated.' : 'Draft saved. It is not included in the management view until submitted.');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Could not save this entry.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const updateStoppage = (index: number, key: string, value: string) => {
+    setForm(current => ({ ...current, stoppages: current.stoppages.map((item, itemIndex) => itemIndex === index ? { ...item, [key]: value } : item) }));
+  };
+  const stoppageDuration = (item: Record<string, string>) => {
+    if (!item.startTime || !item.endTime) return null;
+    const [startHours, startMinutes] = item.startTime.split(':').map(Number);
+    const [endHours, endMinutes] = item.endTime.split(':').map(Number);
+    if (![startHours, startMinutes, endHours, endMinutes].every(Number.isFinite)) return null;
+    let minutes = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
+    if (minutes < 0) minutes += 24 * 60;
+    return minutes / 60;
+  };
+
+  return <div className="reveal">
+    <PageHeading eyebrow="Centralized data entry" title="Daily operations" detail="Enter the shift record once. Save a draft while the workbook is being reconciled, or submit validated values to update the canonical dashboard." action={<div className="flex flex-wrap gap-2"><StatusPill status={form.status === 'SUBMITTED' ? 'GOOD' : 'WATCH'} label={form.status === 'SUBMITTED' ? 'Submitted' : 'Draft'} /><span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-800">Synthetic demo</span></div>} />
+    <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-primary/20 bg-primary/[.045] p-4 sm:flex-row sm:items-end sm:justify-between"><div><div className="eyebrow text-primary">Bilagi Sugar Mill Ltd. — Badagandi</div><p className="mt-1 text-xs text-muted-foreground">Season 2025–26 · manual entry joins the same canonical model as Excel imports.</p></div><div className="grid grid-cols-2 gap-3 sm:flex"><label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Production date<input className={fieldClass} type="date" value={form.productionDate} onChange={event => setForm(current => ({ ...operationsInitial, productionDate: event.target.value, shift: current.shift }))} /></label><label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Shift<select className={fieldClass} value={form.shift} onChange={event => setForm(current => ({ ...current, shift: event.target.value }))}><option value="GENERAL">General</option><option value="A">Shift A</option><option value="B">Shift B</option><option value="C">Shift C</option></select></label></div></div>
+    {notice && <div className="mb-5 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800"><CheckCircle2 size={17} className="mt-0.5 shrink-0" />{notice}</div>}
+    {error && <div className="mb-5 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><AlertCircle size={17} className="mt-0.5 shrink-0" />{error}</div>}
+    <div className="grid gap-6 xl:grid-cols-2">
+      <OperationsSection eyebrow="01 / production" title="Production output">
+        <DataField label="Cane crushed · t" value={form.production.caneCrushed} onChange={value => setSectionValue('production', 'caneCrushed', value)} />
+        <DataField label="Sugar produced · t" value={form.production.sugarProduced} onChange={value => setSectionValue('production', 'sugarProduced', value)} />
+        <DataField label="Sugar bagged · t" value={form.production.sugarBagged} onChange={value => setSectionValue('production', 'sugarBagged', value)} />
+        <DataField label="Bagasse · t" value={form.production.bagasse} onChange={value => setSectionValue('production', 'bagasse', value)} />
+        <DataField label="Filter cake · t" value={form.production.filterCake} onChange={value => setSectionValue('production', 'filterCake', value)} />
+        <DataField label="Molasses · t" value={form.production.molasses} onChange={value => setSectionValue('production', 'molasses', value)} />
+        <DataField label="Recovery · %" value={recovery?.toFixed(2)} readOnly />
+      </OperationsSection>
+      <OperationsSection eyebrow="02 / quality" title="Quality & cane profile">
+        <DataField label="Mixed juice brix · %" value={form.quality.brix} onChange={value => setSectionValue('quality', 'brix', value)} />
+        <DataField label="Mixed juice pol · %" value={form.quality.pol} onChange={value => setSectionValue('quality', 'pol', value)} />
+        <DataField label="Purity · %" value={form.quality.purity} onChange={value => setSectionValue('quality', 'purity', value)} />
+        <DataField label="Cane quality note" type="text" value={form.quality.caneQuality} onChange={value => setSectionValue('quality', 'caneQuality', value)} />
+      </OperationsSection>
+      <OperationsSection eyebrow="03 / efficiency" title="Plant efficiency">
+        <DataField label="Mill extraction · %" value={form.efficiency.millExtraction} onChange={value => setSectionValue('efficiency', 'millExtraction', value)} />
+        <DataField label="Boiling house efficiency · %" value={form.efficiency.boilingHouseEfficiency} onChange={value => setSectionValue('efficiency', 'boilingHouseEfficiency', value)} />
+        <DataField label="Capacity utilization · %" value={form.efficiency.capacityUtilization} onChange={value => setSectionValue('efficiency', 'capacityUtilization', value)} />
+      </OperationsSection>
+      <OperationsSection eyebrow="04 / time account" title="Available time & hours lost">
+        <DataField label="Available hours" value={form.timeAccount.availableHours} onChange={value => setSectionValue('timeAccount', 'availableHours', value)} />
+        <DataField label="Hours worked" value={form.timeAccount.hoursWorked} onChange={value => setSectionValue('timeAccount', 'hoursWorked', value)} />
+        <DataField label="Hours lost · calculated" value={hoursLost?.toFixed(2)} readOnly />
+        <DataField label="Planned maintenance · h" value={form.timeAccount.plannedMaintenance} onChange={value => setSectionValue('timeAccount', 'plannedMaintenance', value)} />
+        <DataField label="Breakdown · h" value={form.timeAccount.breakdown} onChange={value => setSectionValue('timeAccount', 'breakdown', value)} />
+        <DataField label="Cane shortage · h" value={form.timeAccount.caneShortage} onChange={value => setSectionValue('timeAccount', 'caneShortage', value)} />
+      </OperationsSection>
+      <OperationsSection eyebrow="05 / energy" title="Power & steam balance">
+        <DataField label="Power generated · kWh" value={form.energy.powerGenerated} onChange={value => setSectionValue('energy', 'powerGenerated', value)} />
+        <DataField label="Power used · kWh" value={form.energy.powerUsed} onChange={value => setSectionValue('energy', 'powerUsed', value)} />
+        <DataField label="Power exported · calculated" value={powerExported?.toFixed(2)} readOnly />
+        <DataField label="Steam consumption · t/t cane" value={form.energy.steamConsumption} onChange={value => setSectionValue('energy', 'steamConsumption', value)} />
+      </OperationsSection>
+      <section className="panel rounded-2xl p-5 sm:p-6"><div className="eyebrow text-primary">06 / stoppages</div><div className="flex items-start justify-between gap-4"><div><h2 className="mt-1 text-lg font-bold tracking-tight">Stoppage register</h2><p className="mt-1 text-xs text-muted-foreground">Duration is calculated from start and end time.</p></div><button className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-bold hover:bg-secondary" onClick={() => setForm(current => ({ ...current, stoppages: [...current.stoppages, { cause: '', startTime: '', endTime: '' }] }))}><Plus size={14} /> Add</button></div><div className="mt-5 space-y-3">{form.stoppages.map((item, index) => <div key={index} className="grid gap-2 rounded-xl border border-border/70 bg-muted/25 p-3 sm:grid-cols-[1.4fr_.7fr_.7fr_auto] sm:items-end"><DataField label="Cause" type="text" value={item.cause} onChange={value => updateStoppage(index, 'cause', value)} /><DataField label="Start" type="time" value={item.startTime} onChange={value => updateStoppage(index, 'startTime', value)} /><DataField label="End" type="time" value={item.endTime} onChange={value => updateStoppage(index, 'endTime', value)} /><div className="flex items-center justify-between gap-2 sm:pb-2"><span className="mono text-xs font-bold text-primary">{stoppageDuration(item)?.toFixed(2) ?? '—'} h</span><button aria-label="Remove stoppage" className="rounded-md p-2 text-muted-foreground hover:bg-red-50 hover:text-red-700" onClick={() => setForm(current => ({ ...current, stoppages: current.stoppages.filter((_, itemIndex) => itemIndex !== index) }))}><Trash2 size={15} /></button></div></div>)}</div></section>
+      <OperationsSection eyebrow="07 / materials" title="Materials consumed">
+        <DataField label="Material" type="text" value={form.materials[0]?.material} onChange={value => setForm(current => ({ ...current, materials: [{ ...current.materials[0], material: value }] }))} />
+        <DataField label="Quantity · kg/t cane" value={form.materials[0]?.quantity} onChange={value => setForm(current => ({ ...current, materials: [{ ...current.materials[0], quantity: value }] }))} />
+        <DataField label="Unit" type="text" value={form.materials[0]?.unit} onChange={value => setForm(current => ({ ...current, materials: [{ ...current.materials[0], unit: value }] }))} />
+      </OperationsSection>
+    </div>
+    <div className="sticky bottom-4 z-10 mt-6 flex flex-col gap-3 rounded-2xl border border-border bg-card/95 p-4 shadow-xl backdrop-blur sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-2 text-xs text-muted-foreground"><ShieldCheck size={15} className="text-primary" /><span>Server validation calculates Recovery, Hours Lost and Power Exported before persistence.</span></div><div className="flex gap-2"><button disabled={!!busy} onClick={() => save('DRAFT')} className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-bold transition hover:bg-secondary disabled:opacity-50"><Save size={15} />{busy === 'DRAFT' ? 'Saving…' : 'Save draft'}</button><button disabled={!!busy} onClick={() => save('SUBMITTED')} className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"><Send size={15} />{busy === 'SUBMITTED' ? 'Submitting…' : 'Submit to dashboard'}</button></div></div>
+  </div>;
+}
+
 function SettingsPage() {
   const health = useHealthCheck();
   return <div className="reveal"><PageHeading eyebrow="Configuration & readiness" title="System readiness" detail="A concise view of the connections and conventions used to produce trusted daily reports. Configuration is managed by the platform, not in this screen." /><div className="grid gap-6 xl:grid-cols-[1.1fr_.9fr]"><div className="panel rounded-2xl p-6"><div className="eyebrow text-primary">Readiness checks</div><h2 className="mt-1 text-lg font-bold">Can the morning report run?</h2><div className="mt-6 divide-y divide-border/70">{[{ label: 'API service', detail: 'Dashboard and report endpoints', state: health.isError ? 'Needs attention' : health.isLoading ? 'Checking…' : 'Connected', ok: !health.isError && !health.isLoading }, { label: 'Source registry', detail: 'Excel workbook ingestion ledger', state: 'Available', ok: true }, { label: 'Traceability', detail: 'Workbook cell-level lineage', state: 'Enabled', ok: true }, { label: 'Factory context', detail: 'Factory-local production dates', state: 'Configured', ok: true }].map((item) => <div key={item.label} data-testid={`readiness-${item.label.toLowerCase().replaceAll(' ', '-')}`} className="flex items-center gap-4 py-4"><div className={`flex h-9 w-9 items-center justify-center rounded-full ${item.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{item.ok ? <CheckCircle2 size={18} /> : <RefreshCw size={17} />}</div><div className="flex-1"><div className="text-sm font-bold">{item.label}</div><div className="mt-0.5 text-xs text-muted-foreground">{item.detail}</div></div><span className={`text-xs font-bold ${item.ok ? 'text-emerald-700' : 'text-amber-700'}`}>{item.state}</span></div>)}</div></div><div className="panel rounded-2xl p-6"><div className="eyebrow text-primary">Operating contract</div><h2 className="mt-1 text-lg font-bold">What this view guarantees</h2><div className="mt-6 space-y-4">{[{ icon: ShieldCheck, title: 'Numbers stay traceable', text: 'Every KPI can be followed from the report to a workbook, sheet and source cell.' }, { icon: SlidersHorizontal, title: 'No silent assumptions', text: 'Missing or partial data is marked in the view instead of being silently filled.' }, { icon: HardDrive, title: 'Files remain the record', text: 'The source registry preserves processing state, hashes and validation history.' }].map(item => <div key={item.title} className="flex gap-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary"><item.icon size={16} /></div><div><div className="text-sm font-bold">{item.title}</div><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{item.text}</p></div></div>)}</div><div className="mt-7 rounded-xl bg-muted/55 p-4 text-xs leading-relaxed text-muted-foreground"><strong className="text-foreground">Need to change configuration?</strong><br />Contact the platform administrator. This surface intentionally exposes readiness without inventing local edit flows.</div></div></div></div>;
 }
 
 function Router({ user, logout }: { user: AuthUser | null; logout: () => void }) {
-  return <RoutedErrorBoundary><Shell user={user} logout={logout}><Switch><Route path="/" component={Overview} /><Route path="/reports/:productionDate" component={ReportPage} /><Route path="/files/:fileId" component={FileDetailPage} /><Route path="/files" component={FilesPage} /><Route path="/settings" component={SettingsPage} /><Route component={NotFound} /></Switch></Shell></RoutedErrorBoundary>;
+  return <RoutedErrorBoundary><Shell user={user} logout={logout}><Switch><Route path="/" component={Overview} /><Route path="/daily-operations" component={OperationsPage} /><Route path="/reports/:productionDate" component={ReportPage} /><Route path="/files/:fileId" component={FileDetailPage} /><Route path="/files" component={FilesPage} /><Route path="/settings" component={SettingsPage} /><Route component={NotFound} /></Switch></Shell></RoutedErrorBoundary>;
 }
 
 function RoutedErrorBoundary({ children }: { children: ReactNode }) {

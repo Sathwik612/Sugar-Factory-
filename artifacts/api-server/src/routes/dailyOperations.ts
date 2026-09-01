@@ -1,7 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { dailyOperations, kpiValues, productionDays, trendPoints } from "@workspace/db";
+import { anomalies, dailyOperations, kpiValues, productionDays, trendPoints } from "@workspace/db";
 import { getDemoFactoryId } from "../lib/demoData";
 import { requireAuth } from "../middlewares/authMiddleware";
 
@@ -72,14 +72,32 @@ function calculatePayload(body: Record<string, unknown>, validation: ReturnType<
     powerUsed !== null && validation.caneCrushed && validation.caneCrushed > 0
       ? powerUsed / validation.caneCrushed
       : asNumber(efficiency.powerKwhPerMtCane);
+  const stoppages = asArray(body.stoppages).map((stoppage) => {
+    const item = asObject(stoppage);
+    const start = typeof item.startTime === "string" ? item.startTime : "";
+    const end = typeof item.endTime === "string" ? item.endTime : "";
+    const [startHours, startMinutes] = start.split(":").map(Number);
+    const [endHours, endMinutes] = end.split(":").map(Number);
+    let durationHours: number | null = null;
+    if ([startHours, startMinutes, endHours, endMinutes].every(Number.isFinite)) {
+      let minutes = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
+      if (minutes < 0) minutes += 24 * 60;
+      durationHours = minutes / 60;
+    }
+    return { ...item, durationHours };
+  });
+  const stoppageHours = stoppages.reduce(
+    (total, item) => total + (asNumber(asObject(item).durationHours) ?? 0),
+    0,
+  );
 
   return {
     production: { ...validation.production, recovery },
     efficiency: { ...efficiency, powerKwhPerMtCane },
-    timeAccount: { ...validation.timeAccount, hoursLost },
+    timeAccount: { ...validation.timeAccount, hoursLost, stoppageHours },
     energy: { ...energy, powerGenerated, powerUsed, powerExported, steamConsumption },
     quality: asObject(body.quality),
-    stoppages: asArray(body.stoppages),
+    stoppages,
     materials: asArray(body.materials),
   };
 }
@@ -114,6 +132,51 @@ async function upsertCanonicalKpi(
     await db.update(kpiValues).set(data).where(eq(kpiValues.id, existing.id));
   } else {
     await db.insert(kpiValues).values(data);
+  }
+}
+
+async function refreshSubmittedComparisons(factoryId: string, productionDate: string) {
+  const days = await db
+    .select()
+    .from(productionDays)
+    .where(eq(productionDays.factoryId, factoryId))
+    .orderBy(asc(productionDays.productionDate));
+  const currentDayIndex = days.findIndex((day) => day.productionDate === productionDate);
+  const currentDay = days[currentDayIndex];
+  if (!currentDay) return;
+  const previousDay = currentDayIndex > 0 ? days[currentDayIndex - 1] : undefined;
+  const currentRows = await db
+    .select()
+    .from(kpiValues)
+    .where(and(eq(kpiValues.factoryId, factoryId), eq(kpiValues.productionDayId, currentDay.id)));
+  const previousRows = previousDay
+    ? await db
+        .select()
+        .from(kpiValues)
+        .where(and(eq(kpiValues.factoryId, factoryId), eq(kpiValues.productionDayId, previousDay.id)))
+    : [];
+  const baselines: Record<string, number> = {
+    recovery: 9.72,
+    downtime: 9.1,
+    power_generated: 11910,
+    steam_consumption: 3.24,
+  };
+  for (const row of currentRows) {
+    if (row.value === null) continue;
+    const current = Number(row.value);
+    const previous = previousRows.find((candidate) => candidate.code === row.code);
+    const comparison =
+      row.code === "cane_crushed" || row.code === "sugar_produced"
+        ? previous?.value === null || previous?.value === undefined
+          ? null
+          : current - Number(previous.value)
+        : baselines[row.code] === undefined
+          ? null
+          : current - baselines[row.code];
+    await db
+      .update(kpiValues)
+      .set({ comparisonValue: comparison === null ? null : comparison.toFixed(2) })
+      .where(eq(kpiValues.id, row.id));
   }
 }
 
@@ -158,6 +221,7 @@ router.post("/daily-operations", async (req, res, next) => {
 
     const status = body.status === "SUBMITTED" ? "SUBMITTED" : "DRAFT";
     const shift = typeof body.shift === "string" && body.shift ? body.shift : "GENERAL";
+    const submittedBy = status === "SUBMITTED" ? req.user?.id ?? null : null;
     const calculated = calculatePayload(body, validation);
     const now = new Date();
     const [record] = await db
@@ -169,7 +233,7 @@ router.post("/daily-operations", async (req, res, next) => {
         shift,
         status,
         source: "MANUAL_ENTRY",
-        submittedBy: status === "SUBMITTED" ? req.user.id : null,
+        submittedBy,
         submittedAt: status === "SUBMITTED" ? now : null,
         production: calculated.production,
         quality: calculated.quality,
@@ -190,7 +254,7 @@ router.post("/daily-operations", async (req, res, next) => {
           season: typeof body.season === "string" ? body.season : "2025-26",
           status,
           source: "MANUAL_ENTRY",
-          submittedBy: status === "SUBMITTED" ? req.user.id : null,
+          submittedBy,
           submittedAt: status === "SUBMITTED" ? now : null,
           production: calculated.production,
           quality: calculated.quality,
@@ -263,6 +327,37 @@ router.post("/daily-operations", async (req, res, next) => {
       };
       if (trend) await db.update(trendPoints).set(trendData).where(eq(trendPoints.id, trend.id));
       else await db.insert(trendPoints).values(trendData);
+
+      await refreshSubmittedComparisons(factoryId, body.productionDate as string);
+      await db.delete(anomalies).where(
+        and(eq(anomalies.factoryId, factoryId), eq(anomalies.productionDayId, day.id)),
+      );
+      const recoveryValue = asNumber(production.recovery);
+      const downtimeValue = asNumber(timeAccount.hoursLost);
+      const anomalyRows = [];
+      if (recoveryValue !== null && recoveryValue < 9.4) {
+        anomalyRows.push({
+          factoryId,
+          productionDayId: day.id,
+          kpiCode: "recovery",
+          severity: "CRITICAL",
+          title: "Recovery below baseline",
+          detail: "Submitted recovery is below the configured review threshold.",
+          acknowledged: false,
+        });
+      }
+      if (downtimeValue !== null && downtimeValue > 10) {
+        anomalyRows.push({
+          factoryId,
+          productionDayId: day.id,
+          kpiCode: "downtime",
+          severity: "WARNING",
+          title: "Downtime above baseline",
+          detail: "Submitted hours lost are above the configured review threshold.",
+          acknowledged: false,
+        });
+      }
+      if (anomalyRows.length) await db.insert(anomalies).values(anomalyRows);
     }
 
     res.status(200).json(record);

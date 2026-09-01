@@ -7,4 +7,4 @@
  */
 import type { DailyOperations } from './dailyOperations';
 
-export type DailyOperationsInput = DailyOperations & { [key: string]: unknown };
+export type DailyOperationsInput = DailyOperations;

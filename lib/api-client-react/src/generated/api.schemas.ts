@@ -65,7 +65,7 @@ export interface DailyOperations {
   materials: DailyOperationsMaterialsItem[];
 }
 
-export type DailyOperationsInput = DailyOperations & { [key: string]: unknown };
+export type DailyOperationsInput = DailyOperations;
 
 export type DashboardSummaryDataStatus = typeof DashboardSummaryDataStatus[keyof typeof DashboardSummaryDataStatus];
 

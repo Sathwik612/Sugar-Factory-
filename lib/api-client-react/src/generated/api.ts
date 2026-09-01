@@ -23,7 +23,6 @@ import type {
   AuthUserEnvelope,
   BeginBrowserLoginParams,
   DailyOperations,
-  DailyOperationsInput,
   DailyReport,
   DashboardSummary,
   GetDashboardParams,
@@ -1029,14 +1028,14 @@ export const getSaveDailyOperationsUrl = () => {
 /**
  * @summary Save or submit manual daily operations data
  */
-export const saveDailyOperations = async (dailyOperationsInput: DailyOperationsInput, options?: Parameters<typeof customFetch>[1]): Promise<DailyOperations> => {
+export const saveDailyOperations = async (dailyOperations: DailyOperations, options?: Parameters<typeof customFetch>[1]): Promise<DailyOperations> => {
 
   return customFetch<DailyOperations>(getSaveDailyOperationsUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(dailyOperationsInput)
+    body: JSON.stringify(dailyOperations)
   }
 );}
 
@@ -1045,8 +1044,8 @@ export const saveDailyOperations = async (dailyOperationsInput: DailyOperationsI
 
 
 export const getSaveDailyOperationsMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveDailyOperations>>, TError,{data: BodyType<DailyOperationsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof saveDailyOperations>>, TError,{data: BodyType<DailyOperationsInput>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveDailyOperations>>, TError,{data: BodyType<DailyOperations>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveDailyOperations>>, TError,{data: BodyType<DailyOperations>}, TContext> => {
 
 const mutationKey = ['saveDailyOperations'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -1058,7 +1057,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveDailyOperations>>, {data: BodyType<DailyOperationsInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveDailyOperations>>, {data: BodyType<DailyOperations>}> = (props) => {
           const {data} = props ?? {};
 
           return  saveDailyOperations(data,requestOptions)
@@ -1072,18 +1071,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type SaveDailyOperationsMutationResult = NonNullable<Awaited<ReturnType<typeof saveDailyOperations>>>
-    export type SaveDailyOperationsMutationBody = BodyType<DailyOperationsInput>
+    export type SaveDailyOperationsMutationBody = BodyType<DailyOperations>
     export type SaveDailyOperationsMutationError = ErrorType<void>
 
     /**
  * @summary Save or submit manual daily operations data
  */
 export const useSaveDailyOperations = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveDailyOperations>>, TError,{data: BodyType<DailyOperationsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveDailyOperations>>, TError,{data: BodyType<DailyOperations>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof saveDailyOperations>>,
         TError,
-        {data: BodyType<DailyOperationsInput>},
+        {data: BodyType<DailyOperations>},
         TContext
       > => {
       return useMutation(getSaveDailyOperationsMutationOptions(options));

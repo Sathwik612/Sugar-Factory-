@@ -352,10 +352,7 @@ components:
             type: object
             additionalProperties: false
     DailyOperationsInput:
-      allOf:
-        - $ref: "#/components/schemas/DailyOperations"
-        - type: object
-          required: []
+      $ref: "#/components/schemas/DailyOperations"
     DashboardSummary:
       type: object
       required: [factory, productionDate, dataStatus, kpis, exceptions, trend, ingestion]

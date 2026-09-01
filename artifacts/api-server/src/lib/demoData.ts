@@ -13,6 +13,28 @@ import {
 } from "@workspace/db";
 
 const dates = [
+  "2026-08-01",
+  "2026-08-02",
+  "2026-08-03",
+  "2026-08-04",
+  "2026-08-05",
+  "2026-08-06",
+  "2026-08-07",
+  "2026-08-08",
+  "2026-08-09",
+  "2026-08-10",
+  "2026-08-11",
+  "2026-08-12",
+  "2026-08-13",
+  "2026-08-14",
+  "2026-08-15",
+  "2026-08-16",
+  "2026-08-17",
+  "2026-08-18",
+  "2026-08-19",
+  "2026-08-20",
+  "2026-08-21",
+  "2026-08-22",
   "2026-08-23",
   "2026-08-24",
   "2026-08-25",
@@ -39,6 +61,11 @@ export async function seedDemoData() {
     .limit(1);
 
   if (existing.length > 0) {
+    await db
+      .update(factories)
+      .set({ name: "Bilagi Sugar Mill Ltd. — Badagandi" })
+      .where(eq(factories.id, existing[0].id));
+    await extendDemoHistory(existing[0].id);
     await refreshDemoComparisons(existing[0].id);
     return existing[0].id;
   }
@@ -46,7 +73,7 @@ export async function seedDemoData() {
   const [factory] = await db
     .insert(factories)
     .values({
-      name: "Shree Datt Sugar Works",
+      name: "Bilagi Sugar Mill Ltd. — Badagandi",
       timezone: "Asia/Kolkata",
       isDemo: true,
     })
@@ -285,6 +312,60 @@ export async function seedDemoData() {
   ]);
 
   return factory.id;
+}
+
+async function extendDemoHistory(factoryId: string) {
+  const existingDays = await db
+    .select({ id: productionDays.id, productionDate: productionDays.productionDate })
+    .from(productionDays)
+    .where(eq(productionDays.factoryId, factoryId));
+  const existingDates = new Set(existingDays.map((day) => day.productionDate));
+  const missingDates = dates.filter((productionDate) => !existingDates.has(productionDate));
+  if (!missingDates.length) return;
+
+  const dayRows = await db
+    .insert(productionDays)
+    .values(
+      missingDates.map((productionDate) => ({
+        factoryId,
+        productionDate,
+        dataStatus: "COMPLETE",
+      })),
+    )
+    .returning({ id: productionDays.id, productionDate: productionDays.productionDate });
+
+  const dayByDate = new Map(dayRows.map((day) => [day.productionDate, day.id]));
+  const kpiRows = missingDates.flatMap((productionDate) => {
+    const index = dates.indexOf(productionDate);
+    const caneCrushed = 6980 + index * 42 + (index % 2 ? -76 : 54);
+    const sugarProduced = 674 + index * 4.2;
+    const recovery = (sugarProduced / caneCrushed) * 100;
+    const downtime = 8.4 + (index % 3) * 0.7;
+    const powerGenerated = 11840 + index * 95;
+    const steamConsumption = 3.18 + (index % 2) * 0.06;
+    const dayId = dayByDate.get(productionDate)!;
+    return [
+      { factoryId, productionDayId: dayId, code: "cane_crushed", label: "Cane Crushed", value: caneCrushed.toFixed(2), unit: "t", status: "GOOD", comparisonLabel: "vs yesterday", comparisonValue: null, sourceCount: 1 },
+      { factoryId, productionDayId: dayId, code: "sugar_produced", label: "Sugar Produced", value: sugarProduced.toFixed(2), unit: "t", status: "GOOD", comparisonLabel: "vs yesterday", comparisonValue: null, sourceCount: 1 },
+      { factoryId, productionDayId: dayId, code: "recovery", label: "Recovery", value: recovery.toFixed(2), unit: "%", status: "GOOD", comparisonLabel: "vs 7-day avg", comparisonValue: null, sourceCount: 2 },
+      { factoryId, productionDayId: dayId, code: "downtime", label: "Downtime", value: downtime.toFixed(2), unit: "h", status: "GOOD", comparisonLabel: "vs 7-day avg", comparisonValue: null, sourceCount: 1 },
+      { factoryId, productionDayId: dayId, code: "power_generated", label: "Power Generated", value: powerGenerated.toFixed(2), unit: "kWh", status: "GOOD", comparisonLabel: "vs 7-day avg", comparisonValue: null, sourceCount: 1 },
+      { factoryId, productionDayId: dayId, code: "steam_consumption", label: "Steam Consumption", value: steamConsumption.toFixed(2), unit: "t/t cane", status: "GOOD", comparisonLabel: "vs 7-day avg", comparisonValue: null, sourceCount: 1 },
+    ];
+  });
+  await db.insert(kpiValues).values(kpiRows);
+  await db.insert(trendPoints).values(
+    missingDates.map((productionDate) => {
+      const index = dates.indexOf(productionDate);
+      return {
+        factoryId,
+        productionDate,
+        recovery: (9.58 + index * 0.035).toFixed(2),
+        caneCrushed: (6980 + index * 42 + (index % 2 ? -76 : 54)).toFixed(2),
+        downtime: (8.4 + (index % 3) * 0.7).toFixed(2),
+      };
+    }),
+  );
 }
 
 async function refreshDemoComparisons(factoryId: string) {
