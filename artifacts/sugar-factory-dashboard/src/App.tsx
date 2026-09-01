@@ -1,4 +1,4 @@
-import { type ReactNode, useMemo, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
@@ -19,6 +19,8 @@ import {
   Gauge,
   HardDrive,
   LayoutDashboard,
+  LockKeyhole,
+  LogOut,
   Menu,
   RefreshCw,
   Settings2,
@@ -28,6 +30,7 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
+import { useAuth, type AuthUser } from '@workspace/replit-auth-web';
 import {
   getGetDailyReportLineageQueryKey,
   getGetDailyReportQueryKey,
@@ -103,10 +106,21 @@ function EmptyState({ title, detail, icon = <Database size={22} /> }: { title: s
   return <div className="panel flex min-h-[220px] flex-col items-center justify-center rounded-2xl p-8 text-center"><div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-secondary text-primary">{icon}</div><h2 className="text-lg font-bold">{title}</h2><p className="mt-1 max-w-sm text-sm text-muted-foreground">{detail}</p></div>;
 }
 
-function Shell({ children }: { children: ReactNode }) {
+function userDisplayName(user: AuthUser | null) {
+  const name = [user?.firstName, user?.lastName].filter(Boolean).join(' ');
+  return name || user?.email || 'Operations user';
+}
+
+function userInitials(user: AuthUser | null) {
+  const name = [user?.firstName, user?.lastName].filter(Boolean).join('');
+  return name ? name.slice(0, 2).toUpperCase() : 'OP';
+}
+
+function Shell({ children, user, logout }: { children: ReactNode; user: AuthUser | null; logout: () => void }) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const health = useHealthCheck();
+  const displayName = userDisplayName(user);
   const links = [
     { href: '/', label: 'Daily overview', icon: LayoutDashboard, match: location === '/' },
     { href: '/reports/latest', label: 'Daily reports', icon: BarChart3, match: location.startsWith('/reports') },
@@ -122,14 +136,14 @@ function Shell({ children }: { children: ReactNode }) {
             <div><div className="font-bold tracking-tight">Sugar Factory</div><div className="eyebrow mt-0.5 text-sidebar-foreground/55">Intelligence</div></div>
           </div>
           <div className="px-4 pt-7"><div className="eyebrow px-3 text-sidebar-foreground/45">Control room</div><nav className="mt-3 space-y-1">{links.map(({ href, label, icon: Icon, match }) => <Link key={href} href={href} onClick={() => setMobileOpen(false)} data-testid={`link-nav-${label.toLowerCase().replaceAll(' ', '-')}`} className={`group flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-semibold transition ${match ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'text-sidebar-foreground/65 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground'}`}><Icon size={17} strokeWidth={match ? 2.5 : 1.8} /><span>{label}</span>{match && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary" />}</Link>)}</nav></div>
-          <div className="mt-auto border-t border-sidebar-border p-5"><div className="rounded-xl border border-sidebar-border bg-sidebar-accent/60 p-4"><div className="flex items-center gap-2 text-xs font-semibold"><span className={`h-2 w-2 rounded-full ${health.isLoading ? 'bg-amber-300' : health.isError ? 'bg-red-400' : 'bg-emerald-400'}`} />API connection</div><p className="mt-2 text-[11px] leading-relaxed text-sidebar-foreground/55">{health.isError ? 'Connection needs attention.' : 'Source services responding normally.'}</p></div><div className="mt-5 flex items-center gap-2 px-1 text-[10px] text-sidebar-foreground/35"><ShieldCheck size={13} /> Traceable by design</div></div>
+           <div className="mt-auto border-t border-sidebar-border p-5"><div className="rounded-xl border border-sidebar-border bg-sidebar-accent/60 p-4"><div className="flex items-center gap-2 text-xs font-semibold"><span className={`h-2 w-2 rounded-full ${health.isLoading ? 'bg-amber-300' : health.isError ? 'bg-red-400' : 'bg-emerald-400'}`} />API connection</div><p className="mt-2 text-[11px] leading-relaxed text-sidebar-foreground/55">{health.isError ? 'Connection needs attention.' : 'Source services responding normally.'}</p></div><div className="mt-5 flex items-center gap-2 px-1 text-[10px] text-sidebar-foreground/35"><ShieldCheck size={13} /> Traceable by design</div></div>
         </div>
       </aside>
       {mobileOpen && <button aria-label="Close navigation" onClick={() => setMobileOpen(false)} data-testid="button-close-navigation" className="fixed inset-0 z-30 bg-sidebar/40 md:hidden" />}
       <div className="md:pl-[252px]">
         <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-border/80 bg-background/90 px-5 backdrop-blur-md md:px-10">
           <div className="flex items-center gap-3"><button onClick={() => setMobileOpen(true)} data-testid="button-open-navigation" className="rounded-md p-2 hover:bg-secondary md:hidden"><Menu size={20} /></button><div className="eyebrow text-muted-foreground">Operations / <span className="text-primary">{location === '/' ? 'today' : location.split('/')[1] || 'today'}</span></div></div>
-          <div className="flex items-center gap-3"><div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex"><span className={`h-1.5 w-1.5 rounded-full ${health.isError ? 'bg-red-600' : 'bg-emerald-500'}`} />Live data link</div><div className="h-5 w-px bg-border" /><button data-testid="button-notifications" className="relative rounded-md p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground"><Bell size={17} /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-accent" /></button><div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">OM</div></div>
+           <div className="flex items-center gap-2 sm:gap-3"><div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex"><span className={`h-1.5 w-1.5 rounded-full ${health.isError ? 'bg-red-600' : 'bg-emerald-500'}`} />Live data link</div><div className="hidden h-5 w-px bg-border sm:block" /><button data-testid="button-notifications" aria-label="Notifications" className="relative rounded-md p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground"><Bell size={17} /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-accent" /></button><div className="hidden items-center gap-2 border-l border-border pl-3 sm:flex"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{userInitials(user)}</div><span className="max-w-[150px] truncate text-xs font-semibold text-foreground">{displayName}</span></div><button onClick={logout} data-testid="button-logout" aria-label="Log out" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-2 text-xs font-bold text-muted-foreground transition hover:border-destructive/40 hover:bg-destructive/[.05] hover:text-destructive"><LogOut size={15} /><span className="hidden md:inline">Log out</span></button></div>
         </header>
         <main className="mx-auto max-w-[1480px] px-5 py-7 md:px-10 md:py-10">{children}</main>
       </div>
@@ -244,8 +258,8 @@ function SettingsPage() {
   return <div className="reveal"><PageHeading eyebrow="Configuration & readiness" title="System readiness" detail="A concise view of the connections and conventions used to produce trusted daily reports. Configuration is managed by the platform, not in this screen." /><div className="grid gap-6 xl:grid-cols-[1.1fr_.9fr]"><div className="panel rounded-2xl p-6"><div className="eyebrow text-primary">Readiness checks</div><h2 className="mt-1 text-lg font-bold">Can the morning report run?</h2><div className="mt-6 divide-y divide-border/70">{[{ label: 'API service', detail: 'Dashboard and report endpoints', state: health.isError ? 'Needs attention' : health.isLoading ? 'Checking…' : 'Connected', ok: !health.isError && !health.isLoading }, { label: 'Source registry', detail: 'Excel workbook ingestion ledger', state: 'Available', ok: true }, { label: 'Traceability', detail: 'Workbook cell-level lineage', state: 'Enabled', ok: true }, { label: 'Factory context', detail: 'Factory-local production dates', state: 'Configured', ok: true }].map((item) => <div key={item.label} data-testid={`readiness-${item.label.toLowerCase().replaceAll(' ', '-')}`} className="flex items-center gap-4 py-4"><div className={`flex h-9 w-9 items-center justify-center rounded-full ${item.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{item.ok ? <CheckCircle2 size={18} /> : <RefreshCw size={17} />}</div><div className="flex-1"><div className="text-sm font-bold">{item.label}</div><div className="mt-0.5 text-xs text-muted-foreground">{item.detail}</div></div><span className={`text-xs font-bold ${item.ok ? 'text-emerald-700' : 'text-amber-700'}`}>{item.state}</span></div>)}</div></div><div className="panel rounded-2xl p-6"><div className="eyebrow text-primary">Operating contract</div><h2 className="mt-1 text-lg font-bold">What this view guarantees</h2><div className="mt-6 space-y-4">{[{ icon: ShieldCheck, title: 'Numbers stay traceable', text: 'Every KPI can be followed from the report to a workbook, sheet and source cell.' }, { icon: SlidersHorizontal, title: 'No silent assumptions', text: 'Missing or partial data is marked in the view instead of being silently filled.' }, { icon: HardDrive, title: 'Files remain the record', text: 'The source registry preserves processing state, hashes and validation history.' }].map(item => <div key={item.title} className="flex gap-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary"><item.icon size={16} /></div><div><div className="text-sm font-bold">{item.title}</div><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{item.text}</p></div></div>)}</div><div className="mt-7 rounded-xl bg-muted/55 p-4 text-xs leading-relaxed text-muted-foreground"><strong className="text-foreground">Need to change configuration?</strong><br />Contact the platform administrator. This surface intentionally exposes readiness without inventing local edit flows.</div></div></div></div>;
 }
 
-function Router() {
-  return <RoutedErrorBoundary><Shell><Switch><Route path="/" component={Overview} /><Route path="/reports/:productionDate" component={ReportPage} /><Route path="/files/:fileId" component={FileDetailPage} /><Route path="/files" component={FilesPage} /><Route path="/settings" component={SettingsPage} /><Route component={NotFound} /></Switch></Shell></RoutedErrorBoundary>;
+function Router({ user, logout }: { user: AuthUser | null; logout: () => void }) {
+  return <RoutedErrorBoundary><Shell user={user} logout={logout}><Switch><Route path="/" component={Overview} /><Route path="/reports/:productionDate" component={ReportPage} /><Route path="/files/:fileId" component={FileDetailPage} /><Route path="/files" component={FilesPage} /><Route path="/settings" component={SettingsPage} /><Route component={NotFound} /></Switch></Shell></RoutedErrorBoundary>;
 }
 
 function RoutedErrorBoundary({ children }: { children: ReactNode }) {
@@ -253,8 +267,76 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
   return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>;
 }
 
+function LoginScreen({ onLogin }: { onLogin: () => void }) {
+  return (
+    <main className="login-screen grain min-h-[100dvh] overflow-hidden text-foreground">
+      <div className="login-atmosphere" aria-hidden="true" />
+      <div className="relative mx-auto grid min-h-[100dvh] max-w-[1540px] lg:grid-cols-[minmax(0,1.05fr)_minmax(420px,.95fr)]">
+        <section className="login-control-room relative flex min-h-[310px] flex-col justify-between overflow-hidden px-6 py-7 text-sidebar-foreground sm:px-10 sm:py-9 lg:min-h-[100dvh] lg:px-14 lg:py-12">
+          <div className="login-grid absolute inset-0 opacity-60" aria-hidden="true" />
+          <div className="relative z-10 flex items-center gap-3">
+            <div className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-black/15">
+              <Gauge size={23} />
+              <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-sidebar" />
+            </div>
+            <div>
+              <div className="font-bold tracking-tight">Sugar Factory</div>
+              <div className="eyebrow mt-0.5 text-sidebar-foreground/55">Intelligence</div>
+            </div>
+          </div>
+          <div className="relative z-10 max-w-xl py-10 lg:py-0">
+            <div className="eyebrow mb-5 text-sidebar-primary">Operations console / 06:00 shift</div>
+            <h1 className="max-w-[650px] text-[clamp(2.35rem,5vw,5rem)] font-bold leading-[.98] tracking-[-.065em]">
+              Start with the source. <span className="text-sidebar-primary">Then trust the number.</span>
+            </h1>
+            <p className="mt-6 max-w-md text-sm leading-7 text-sidebar-foreground/65 sm:text-base">
+              A quiet place for the morning signal: production, exceptions and the records behind every measure.
+            </p>
+          </div>
+          <div className="relative z-10 hidden items-end justify-between gap-8 lg:flex">
+            <div className="max-w-[230px] text-xs leading-5 text-sidebar-foreground/45">
+              <div className="mb-3 flex items-center gap-2 text-sidebar-foreground/75"><ShieldCheck size={15} className="text-sidebar-primary" /> Traceability is the operating contract</div>
+              Source workbooks, validation history and cell-level lineage stay close to the decision.
+            </div>
+            <div className="login-readout w-[190px] rounded-xl border border-sidebar-border bg-sidebar-accent/55 p-4 backdrop-blur-sm">
+              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-[.12em] text-sidebar-foreground/50"><span>System pulse</span><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /></div>
+              <div className="mono mt-3 text-2xl font-bold text-sidebar-primary">READY</div>
+              <div className="mt-1 text-[11px] text-sidebar-foreground/45">Source services standing by</div>
+            </div>
+          </div>
+        </section>
+        <section className="login-entry flex items-center justify-center px-5 py-10 sm:px-10 lg:px-16">
+          <div className="w-full max-w-[450px] reveal">
+            <div className="mb-8 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.12em] text-muted-foreground"><span className="h-2 w-2 rounded-full bg-emerald-600" /> Secure operations access</div>
+            <div className="panel login-card rounded-2xl p-6 sm:p-9">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary text-primary"><LockKeyhole size={21} /></div>
+              <div className="mt-8 eyebrow text-primary">Good morning</div>
+              <h2 className="mt-2 text-[clamp(1.9rem,4vw,2.6rem)] font-bold leading-tight tracking-[-.05em]">Enter the control room</h2>
+              <p className="mt-3 max-w-sm text-sm leading-6 text-muted-foreground">Log in to review today’s factory signal and follow each figure back to its source record.</p>
+              <button onClick={onLogin} data-testid="button-login" className="mt-8 flex w-full items-center justify-between rounded-xl bg-primary px-5 py-4 text-sm font-bold text-primary-foreground shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                <span>Log in</span><ArrowRight size={18} />
+              </button>
+              <div className="mt-6 flex items-start gap-2.5 border-t border-border/70 pt-5 text-xs leading-5 text-muted-foreground"><ShieldCheck size={15} className="mt-0.5 shrink-0 text-primary" />Access is managed securely. No local credentials are stored in this console.</div>
+            </div>
+            <div className="mt-6 flex items-center justify-between px-1 text-[10px] font-bold uppercase tracking-[.12em] text-muted-foreground/75"><span>Factory-local time</span><span>Source-first operations</span></div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function AuthGate() {
+  const { user, isLoading, isAuthenticated, login, logout } = useAuth();
+  if (isLoading) {
+    return <main className="auth-loading min-h-[100dvh] px-6 py-8" aria-label="Loading access"><div className="mx-auto flex min-h-[calc(100dvh-4rem)] max-w-6xl flex-col justify-between"><div className="flex items-center gap-3"><SkeletonBlock className="h-11 w-11 rounded-xl" /><div><SkeletonBlock className="h-4 w-28" /><SkeletonBlock className="mt-2 h-2.5 w-20" /></div></div><div className="grid gap-8 lg:grid-cols-2"><div><SkeletonBlock className="h-3 w-40" /><SkeletonBlock className="mt-5 h-20 w-full max-w-xl" /><SkeletonBlock className="mt-4 h-4 w-80 max-w-full" /></div><SkeletonBlock className="h-72 w-full max-w-md lg:justify-self-end" /></div></div></main>;
+  }
+  if (!isAuthenticated) return <LoginScreen onLogin={login} />;
+  return <Router user={user} logout={logout} />;
+}
+
 function App() {
-  return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router /></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider>;
+  return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><AuthGate /></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider>;
 }
 
 export default App;

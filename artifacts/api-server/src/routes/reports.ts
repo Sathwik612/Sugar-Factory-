@@ -11,8 +11,10 @@ import {
   sourceFiles,
 } from "@workspace/db";
 import { getDemoFactoryId } from "../lib/demoData";
+import { requireAuth } from "../middlewares/authMiddleware";
 
 const router: IRouter = Router();
+router.use(requireAuth);
 
 const toNumber = (value: string | null) => (value === null ? null : Number(value));
 

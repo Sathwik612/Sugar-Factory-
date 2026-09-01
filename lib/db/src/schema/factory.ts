@@ -9,7 +9,9 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  varchar,
 } from "drizzle-orm/pg-core";
+import { usersTable } from "./auth";
 
 export const factories = pgTable("factories", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -121,3 +123,34 @@ export const validationIssues = pgTable("validation_issues", {
   location: text("location"),
   details: jsonb("details"),
 });
+
+export const dailyOperations = pgTable(
+  "daily_operations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    factoryId: uuid("factory_id").notNull().references(() => factories.id),
+    productionDate: date("production_date").notNull(),
+    season: text("season").notNull(),
+    shift: text("shift").notNull(),
+    status: text("status").notNull().default("DRAFT"),
+    source: text("source").notNull().default("MANUAL_ENTRY"),
+    submittedBy: varchar("submitted_by").references(() => usersTable.id),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    production: jsonb("production").notNull().default({}),
+    quality: jsonb("quality").notNull().default({}),
+    efficiency: jsonb("efficiency").notNull().default({}),
+    timeAccount: jsonb("time_account").notNull().default({}),
+    stoppages: jsonb("stoppages").notNull().default([]),
+    energy: jsonb("energy").notNull().default({}),
+    materials: jsonb("materials").notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    factoryDateShiftIdx: uniqueIndex("daily_operations_factory_date_shift_idx").on(
+      table.factoryId,
+      table.productionDate,
+      table.shift,
+    ),
+  }),
+);

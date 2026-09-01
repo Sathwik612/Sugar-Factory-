@@ -12,8 +12,10 @@ import {
 import { db } from "@workspace/db";
 import { processingEvents, sourceFiles, validationIssues } from "@workspace/db";
 import { getDemoFactoryId } from "../lib/demoData";
+import { requireAuth } from "../middlewares/authMiddleware";
 
 const router: IRouter = Router();
+router.use(requireAuth);
 
 router.get("/source-files", async (req, res, next) => {
   try {

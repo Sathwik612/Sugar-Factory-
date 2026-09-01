@@ -9,6 +9,64 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface AuthUser {
+  id: string;
+  /** @nullable */
+  email: string | null;
+  /** @nullable */
+  firstName: string | null;
+  /** @nullable */
+  lastName: string | null;
+  /** @nullable */
+  profileImageUrl: string | null;
+}
+
+export interface AuthUserEnvelope {
+  user: AuthUser | null;
+}
+
+export type DailyOperationsStatus = typeof DailyOperationsStatus[keyof typeof DailyOperationsStatus];
+
+
+export const DailyOperationsStatus = {
+  DRAFT: 'DRAFT',
+  SUBMITTED: 'SUBMITTED',
+  APPROVED: 'APPROVED',
+} as const;
+
+export type DailyOperationsProduction = { [key: string]: unknown };
+
+export type DailyOperationsQuality = { [key: string]: unknown };
+
+export type DailyOperationsEfficiency = { [key: string]: unknown };
+
+export type DailyOperationsTimeAccount = { [key: string]: unknown };
+
+export type DailyOperationsStoppagesItem = { [key: string]: unknown };
+
+export type DailyOperationsEnergy = { [key: string]: unknown };
+
+export type DailyOperationsMaterialsItem = { [key: string]: unknown };
+
+export interface DailyOperations {
+  id: string;
+  factoryId: string;
+  productionDate: string;
+  season: string;
+  shift: string;
+  status: DailyOperationsStatus;
+  source: string;
+  production: DailyOperationsProduction;
+  quality: DailyOperationsQuality;
+  efficiency: DailyOperationsEfficiency;
+  timeAccount: DailyOperationsTimeAccount;
+  stoppages: DailyOperationsStoppagesItem[];
+  energy: DailyOperationsEnergy;
+  materials: DailyOperationsMaterialsItem[];
+}
+
+export type DailyOperationsInput = DailyOperations & { [key: string]: unknown };
+
 export type DashboardSummaryDataStatus = typeof DashboardSummaryDataStatus[keyof typeof DashboardSummaryDataStatus];
 
 
@@ -216,6 +274,8 @@ export interface SourceFileUpload {
  */
 export type ProductionDateParameter = string;
 
+export type AuthorizationSessionHeaderParameter = string;
+
 export type GetDashboardParams = {
 /**
  * Factory-local production date; defaults to the latest available date
@@ -249,4 +309,18 @@ export const ListSourceFilesStatus = {
   FAILED: 'FAILED',
   DUPLICATE: 'DUPLICATE',
 } as const;
+
+export type BeginBrowserLoginParams = {
+returnTo?: string;
+};
+
+export type HandleBrowserLoginCallbackParams = {
+code?: string;
+state?: string;
+iss?: string;
+};
+
+export type LogoutBrowserSessionParams = {
+returnTo?: string;
+};
 

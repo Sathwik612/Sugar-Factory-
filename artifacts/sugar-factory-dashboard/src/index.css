@@ -470,6 +470,49 @@
 .side-grid { background-image: linear-gradient(hsl(var(--sidebar-border) / .22) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--sidebar-border) / .16) 1px, transparent 1px); background-size: 26px 26px; }
 .sparkline { overflow: visible; }
 .sparkline path { vector-effect: non-scaling-stroke; }
+.login-screen {
+  background:
+    radial-gradient(circle at 88% 12%, hsl(var(--accent) / .12), transparent 28rem),
+    hsl(var(--background));
+}
+.login-atmosphere {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: .5;
+  background-image: linear-gradient(115deg, transparent 0 45%, hsl(var(--accent) / .055) 45.1% 45.3%, transparent 45.4% 100%);
+}
+.login-control-room {
+  background:
+    radial-gradient(circle at 86% 20%, hsl(var(--sidebar-primary) / .13), transparent 19rem),
+    hsl(var(--sidebar));
+}
+.login-grid {
+  background-image:
+    linear-gradient(hsl(var(--sidebar-border) / .38) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--sidebar-border) / .3) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: linear-gradient(to bottom, black, transparent 88%);
+}
+.login-readout {
+  box-shadow: 0 16px 34px hsl(195 30% 8% / .2);
+}
+.login-entry {
+  background: hsl(var(--background) / .62);
+}
+.login-card {
+  box-shadow: 0 24px 60px hsl(195 26% 18% / .11);
+  animation: login-card-in .55s cubic-bezier(.2,.75,.25,1) both;
+}
+.auth-loading {
+  background: hsl(var(--background));
+}
+@keyframes login-card-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 @media (max-width: 767px) {
   .app-shell { background: hsl(var(--background)); }
+  .login-control-room { min-height: 360px; }
+  .login-entry { align-items: flex-start; }
 }

@@ -4,8 +4,10 @@ import { GetDashboardQueryParams, GetDashboardResponse } from "@workspace/api-zo
 import { db } from "@workspace/db";
 import { anomalies, factories, kpiValues, sourceFiles, trendPoints } from "@workspace/db";
 import { getDemoFactoryId, getProductionDay } from "../lib/demoData";
+import { requireAuth } from "../middlewares/authMiddleware";
 
 const router: IRouter = Router();
+router.use(requireAuth);
 
 const numberOrNull = (value: string | number | null) =>
   value === null ? null : Number(value);

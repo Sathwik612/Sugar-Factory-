@@ -228,3 +228,164 @@ export const UploadSourceFileResponse = zod.object({
 })
 
 
+/**
+ * @summary Get the currently authenticated user
+ */
+export const GetCurrentAuthUserHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const GetCurrentAuthUserResponse = zod.object({
+  "user": zod.union([zod.object({
+  "id": zod.string(),
+  "email": zod.string().nullable(),
+  "firstName": zod.string().nullable(),
+  "lastName": zod.string().nullable(),
+  "profileImageUrl": zod.string().nullable()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Start the browser OIDC login flow
+ */
+export const BeginBrowserLoginQueryParams = zod.object({
+  "returnTo": zod.coerce.string().optional()
+})
+
+export const BeginBrowserLoginResponse = zod.void()
+
+
+/**
+ * @summary Complete the browser OIDC login flow
+ */
+export const HandleBrowserLoginCallbackQueryParams = zod.object({
+  "code": zod.coerce.string().optional(),
+  "state": zod.coerce.string().optional(),
+  "iss": zod.coerce.string().optional()
+})
+
+export const HandleBrowserLoginCallbackResponse = zod.void()
+
+
+/**
+ * @summary Clear the browser session
+ */
+export const LogoutBrowserSessionQueryParams = zod.object({
+  "returnTo": zod.coerce.string().optional()
+})
+
+export const LogoutBrowserSessionHeader = zod.object({
+  "Authorization": zod.string().optional()
+})
+
+export const LogoutBrowserSessionResponse = zod.void()
+
+
+/**
+ * @summary Get manual daily operations data
+ */
+export const GetDailyOperationsParams = zod.object({
+  "productionDate": zod.date()
+})
+
+export const GetDailyOperationsResponse = zod.object({
+  "id": zod.string(),
+  "factoryId": zod.string(),
+  "productionDate": zod.coerce.date(),
+  "season": zod.string(),
+  "shift": zod.string(),
+  "status": zod.enum(['DRAFT', 'SUBMITTED', 'APPROVED']),
+  "source": zod.string(),
+  "production": zod.object({
+
+}),
+  "quality": zod.object({
+
+}),
+  "efficiency": zod.object({
+
+}),
+  "timeAccount": zod.object({
+
+}),
+  "stoppages": zod.array(zod.object({
+
+})),
+  "energy": zod.object({
+
+}),
+  "materials": zod.array(zod.object({
+
+}))
+})
+
+
+/**
+ * @summary Save or submit manual daily operations data
+ */
+export const SaveDailyOperationsBody = zod.object({
+  "id": zod.string(),
+  "factoryId": zod.string(),
+  "productionDate": zod.coerce.date(),
+  "season": zod.string(),
+  "shift": zod.string(),
+  "status": zod.enum(['DRAFT', 'SUBMITTED', 'APPROVED']),
+  "source": zod.string(),
+  "production": zod.object({
+
+}),
+  "quality": zod.object({
+
+}),
+  "efficiency": zod.object({
+
+}),
+  "timeAccount": zod.object({
+
+}),
+  "stoppages": zod.array(zod.object({
+
+})),
+  "energy": zod.object({
+
+}),
+  "materials": zod.array(zod.object({
+
+}))
+}).and(zod.looseObject({
+
+}))
+
+export const SaveDailyOperationsResponse = zod.object({
+  "id": zod.string(),
+  "factoryId": zod.string(),
+  "productionDate": zod.coerce.date(),
+  "season": zod.string(),
+  "shift": zod.string(),
+  "status": zod.enum(['DRAFT', 'SUBMITTED', 'APPROVED']),
+  "source": zod.string(),
+  "production": zod.object({
+
+}),
+  "quality": zod.object({
+
+}),
+  "efficiency": zod.object({
+
+}),
+  "timeAccount": zod.object({
+
+}),
+  "stoppages": zod.array(zod.object({
+
+})),
+  "energy": zod.object({
+
+}),
+  "materials": zod.array(zod.object({
+
+}))
+})
+
+

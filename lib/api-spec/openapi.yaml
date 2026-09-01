@@ -16,6 +16,8 @@ tags:
     description: Reproducible daily management reports
   - name: source-files
     description: Workbook registry and ingestion status
+  - name: Auth
+    description: Browser and mobile authentication endpoints.
 paths:
   /healthz:
     get:
@@ -143,6 +145,109 @@ paths:
                 $ref: "#/components/schemas/SourceFile"
         "400":
           description: Unsupported or invalid upload
+  /auth/user:
+    get:
+      tags: [Auth]
+      operationId: getCurrentAuthUser
+      summary: Get the currently authenticated user
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Auth status resolved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUserEnvelope"
+  /login:
+    get:
+      tags: [Auth]
+      operationId: beginBrowserLogin
+      summary: Start the browser OIDC login flow
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to the OIDC authorization endpoint
+  /callback:
+    get:
+      tags: [Auth]
+      operationId: handleBrowserLoginCallback
+      summary: Complete the browser OIDC login flow
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: iss
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect after login
+  /logout:
+    get:
+      tags: [Auth]
+      operationId: logoutBrowserSession
+      summary: Clear the browser session
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect after logout
+  /daily-operations/{productionDate}:
+    get:
+      tags: [dashboard]
+      operationId: getDailyOperations
+      summary: Get manual daily operations data
+      parameters:
+        - $ref: "#/components/parameters/ProductionDatePath"
+      responses:
+        "200":
+          description: Manual operations record or null
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyOperations"
+  /daily-operations:
+    post:
+      tags: [dashboard]
+      operationId: saveDailyOperations
+      summary: Save or submit manual daily operations data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DailyOperationsInput"
+      responses:
+        "200":
+          description: Saved operations record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyOperations"
+        "400":
+          description: Validation failed
 components:
   parameters:
     ProductionDate:
@@ -159,6 +264,18 @@ components:
       schema:
         type: string
         format: date
+    AuthorizationSessionHeader:
+      name: Authorization
+      in: header
+      required: false
+      schema:
+        type: string
+    SessionCookie:
+      name: sid
+      in: cookie
+      required: false
+      schema:
+        type: string
   schemas:
     HealthStatus:
       type: object
@@ -167,6 +284,78 @@ components:
           type: string
       required:
         - status
+    AuthUser:
+      type: object
+      required: [id, email, firstName, lastName, profileImageUrl]
+      properties:
+        id:
+          type: string
+        email:
+          type: ["string", "null"]
+        firstName:
+          type: ["string", "null"]
+        lastName:
+          type: ["string", "null"]
+        profileImageUrl:
+          type: ["string", "null"]
+    AuthUserEnvelope:
+      type: object
+      required: [user]
+      properties:
+        user:
+          oneOf:
+            - $ref: "#/components/schemas/AuthUser"
+            - type: "null"
+    DailyOperations:
+      type: object
+      required: [id, factoryId, productionDate, season, shift, status, source, production, quality, efficiency, timeAccount, stoppages, energy, materials]
+      properties:
+        id:
+          type: string
+        factoryId:
+          type: string
+        productionDate:
+          type: string
+          format: date
+        season:
+          type: string
+        shift:
+          type: string
+        status:
+          type: string
+          enum: [DRAFT, SUBMITTED, APPROVED]
+        source:
+          type: string
+        production:
+          type: object
+          additionalProperties: false
+        quality:
+          type: object
+          additionalProperties: false
+        efficiency:
+          type: object
+          additionalProperties: false
+        timeAccount:
+          type: object
+          additionalProperties: false
+        stoppages:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+        energy:
+          type: object
+          additionalProperties: false
+        materials:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+    DailyOperationsInput:
+      allOf:
+        - $ref: "#/components/schemas/DailyOperations"
+        - type: object
+          required: []
     DashboardSummary:
       type: object
       required: [factory, productionDate, dataStatus, kpis, exceptions, trend, ingestion]
