@@ -9,10 +9,10 @@ import dailyOperationsRouter from "./dailyOperations";
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(authRouter);
 router.use(dashboardRouter);
 router.use(reportsRouter);
 router.use(sourceFilesRouter);
-router.use(authRouter);
 router.use(dailyOperationsRouter);
 
 export default router;
