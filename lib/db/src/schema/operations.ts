@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, date, index, jsonb, numeric, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
+import { boolean, date, index, integer, jsonb, numeric, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
 import { usersTable } from "./auth";
 import { dailyOperations, factories } from "./factory";
 
@@ -227,4 +227,27 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
 }, (table) => ({
   endpointIdx: uniqueIndex("push_subscriptions_endpoint_idx").on(table.endpoint),
   userActiveIdx: index("push_subscriptions_user_active_idx").on(table.userId, table.revokedAt),
+}));
+
+export const pushDeliveryAttempts = pgTable("push_delivery_attempts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  notificationId: uuid("notification_id").notNull().references(() => notifications.id),
+  subscriptionId: uuid("subscription_id").notNull().references(() => pushSubscriptions.id),
+  userId: varchar("user_id").notNull().references(() => usersTable.id),
+  factoryId: uuid("factory_id").notNull().references(() => factories.id),
+  status: text("status").notNull().default("QUEUED"),
+  responseStatus: integer("response_status"),
+  errorCode: text("error_code"),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }),
+  attemptedAt: timestamp("attempted_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  notificationSubscriptionIdx: uniqueIndex("push_delivery_attempts_notification_subscription_idx").on(
+    table.notificationId,
+    table.subscriptionId,
+  ),
+  queueIdx: index("push_delivery_attempts_queue_idx").on(table.status, table.createdAt),
 }));

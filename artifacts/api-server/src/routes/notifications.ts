@@ -4,7 +4,11 @@ import { db, notificationPreferences, notifications, pushSubscriptions } from "@
 
 import { recordAudit } from "../lib/audit";
 import { getDemoFactoryId } from "../lib/demoData";
-import { getOrCreatePreferences } from "../lib/notifications";
+import {
+  getOrCreatePreferences,
+  getWebPushConfigStatus,
+  isSupportedPushEndpoint,
+} from "../lib/notifications";
 import { requireAuth } from "../middlewares/authMiddleware";
 
 const router: IRouter = Router();
@@ -130,8 +134,7 @@ router.patch("/notification-preferences", requireAuth, async (req, res, next) =>
 });
 
 router.get("/push/config", requireAuth, (_req, res) => {
-  const publicKey = process.env.WEB_PUSH_PUBLIC_KEY?.trim() || null;
-  res.json({ enabled: Boolean(publicKey), publicKey });
+  res.json(getWebPushConfigStatus());
 });
 
 router.get("/push-subscriptions", requireAuth, async (req, res, next) => {
@@ -160,33 +163,62 @@ router.post("/push-subscriptions", requireAuth, async (req, res, next) => {
     const endpoint = typeof req.body?.endpoint === "string" ? req.body.endpoint.trim() : "";
     const p256dh = typeof req.body?.keys?.p256dh === "string" ? req.body.keys.p256dh.trim() : "";
     const auth = typeof req.body?.keys?.auth === "string" ? req.body.keys.auth.trim() : "";
-    if (!factoryId || !endpoint.startsWith("https://") || !p256dh || !auth) {
+    if (
+      !factoryId ||
+      !isSupportedPushEndpoint(endpoint) ||
+      !p256dh ||
+      p256dh.length > 512 ||
+      !auth ||
+      auth.length > 256
+    ) {
       res.status(400).json({ error: "A valid web-push subscription is required." });
       return;
     }
-    const [saved] = await db
-      .insert(pushSubscriptions)
-      .values({
-        userId: req.user!.id,
-        factoryId,
-        endpoint,
-        p256dh,
-        auth,
-        userAgent: req.get("user-agent")?.slice(0, 500) ?? null,
-      })
-      .onConflictDoUpdate({
-        target: pushSubscriptions.endpoint,
-        set: {
+    const saved = await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(pushSubscriptions)
+        .where(eq(pushSubscriptions.endpoint, endpoint))
+        .limit(1);
+      if (existing && existing.userId !== req.user!.id) return null;
+      if (existing) {
+        const [updated] = await tx
+          .update(pushSubscriptions)
+          .set({
+            factoryId,
+            p256dh,
+            auth,
+            userAgent: req.get("user-agent")?.slice(0, 500) ?? null,
+            revokedAt: null,
+            updatedAt: new Date(),
+          })
+          .where(and(
+            eq(pushSubscriptions.id, existing.id),
+            eq(pushSubscriptions.userId, req.user!.id),
+          ))
+          .returning({ id: pushSubscriptions.id, createdAt: pushSubscriptions.createdAt });
+        return updated ?? null;
+      }
+      const [created] = await tx
+        .insert(pushSubscriptions)
+        .values({
           userId: req.user!.id,
           factoryId,
+          endpoint,
           p256dh,
           auth,
           userAgent: req.get("user-agent")?.slice(0, 500) ?? null,
-          revokedAt: null,
-          updatedAt: new Date(),
-        },
-      })
-      .returning({ id: pushSubscriptions.id, createdAt: pushSubscriptions.createdAt });
+        })
+        .onConflictDoNothing()
+        .returning({ id: pushSubscriptions.id, createdAt: pushSubscriptions.createdAt });
+      return created ?? null;
+    });
+    if (!saved) {
+      res.status(409).json({
+        error: "This push subscription belongs to another account. Unsubscribe this browser before enabling it here.",
+      });
+      return;
+    }
     await db
       .update(notificationPreferences)
       .set({ webPushEnabled: true, updatedAt: new Date() })

@@ -324,7 +324,7 @@ All routes are mounted under `/api`.
 - `GET /notification-preferences`
 - `PATCH /notification-preferences`
 
-Approval assignments, approval tasks, notification preferences, and notification records are persisted in PostgreSQL. Notification delivery is currently in-app; external email/SMS/WhatsApp providers are intentionally disabled.
+Approval assignments, approval tasks, notification preferences, notifications, web-push subscriptions, and delivery attempts are persisted in PostgreSQL. Critical web push is available only to opted-in recipients when VAPID secrets are configured; email/SMS/WhatsApp remain disabled.
 
 The Operations Suite page currently calls these endpoints with `fetch`. If these APIs are added to the formal OpenAPI contract later, regenerate the React client and Zod schemas afterward.
 

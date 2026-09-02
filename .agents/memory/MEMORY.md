@@ -1,0 +1,2 @@
+- [OpenAPI/Zod compatibility](openapi-codegen-zod.md) — generated integer and binary schemas can break the workspace's Zod 3 typecheck; validate codegen plus library types together.
+- [Web-push secret bootstrap](web-push-secret-bootstrap.md) — keep the VAPID pair and subject in secret storage; use the artifact-local CLI path if filtered exec cannot resolve it.

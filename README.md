@@ -182,6 +182,7 @@ Notifications are durable PostgreSQL records, not browser-only state.
 - Action links open the relevant approval, Daily Operations, or alert view.
 - User preferences control approval, data-decision, quality, stores, maintenance, and operational alert messages.
 - In-app delivery is enabled.
+- Opted-in managers receive critical alerts through audited web-push delivery when production VAPID secrets are configured.
 - Email, SMS, and WhatsApp are intentionally not connected to paid providers.
 - Deterministic deduplication keys prevent refresh/re-evaluation spam.
 

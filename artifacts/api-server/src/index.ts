@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { seedDemoData } from "./lib/demoData";
 import { seedDemoUsers } from "./routes/auth";
 import { closeDatabase } from "@workspace/db";
+import { startPushDeliveryWorker } from "./lib/notifications";
 
 const rawPort = process.env["PORT"];
 
@@ -26,6 +27,7 @@ async function start() {
   }
   const server = app.listen(port, () => {
     logger.info({ port }, "Server listening");
+    startPushDeliveryWorker();
   });
   let shuttingDown = false;
   const shutdown = async (signal: string) => {
