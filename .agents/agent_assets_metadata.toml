@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "pc2Hjz0Ggx1QuWJ0SLvwl"
+uri = "file://KT_HANDOVER.md"
+type = "text"
+title = "Sugar Factory Intelligence — KT Handover"
+description = "Knowledge-transfer guide covering the current product, architecture, roles, workflows, data model, alert lifecycle, verification, limitations, and next steps."
+logical_id = "349e184d-2627-48cc-a2ee-95cc36cab82f"
+content_hash = "sha256:66ba7860af2d9398deb6be808ae112b544b0c123b473065c15ee000498fac35b"
+size = 16673
+mtime_ms = 1788342003797
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:bbe6afa7-2b14-4ea2-8988-cc3408877664/349e184d-2627-48cc-a2ee-95cc36cab82f/c7d6d227-f97b-405f-b413-a0a84aeef96b"
+storage_version_token = "1788342008371171"
+content_type = "text/markdown"
