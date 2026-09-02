@@ -238,48 +238,179 @@ export const GetCurrentAuthUserHeader = zod.object({
 export const GetCurrentAuthUserResponse = zod.object({
   "user": zod.union([zod.object({
   "id": zod.string(),
+  "username": zod.string(),
   "email": zod.string().nullable(),
   "firstName": zod.string().nullable(),
   "lastName": zod.string().nullable(),
-  "profileImageUrl": zod.string().nullable()
+  "profileImageUrl": zod.string().nullable(),
+  "role": zod.enum(['PRODUCTION_OPERATOR', 'QUALITY_OPERATOR', 'ENGINEERING_OPERATOR', 'STORES_OPERATOR', 'MANAGER', 'ADMIN']),
+  "department": zod.string(),
+  "isDemo": zod.boolean()
 }),zod.null()])
 })
 
 
 /**
- * @summary Start the browser OIDC login flow
+ * @summary Log in with a demo username and password
  */
-export const BeginBrowserLoginQueryParams = zod.object({
-  "returnTo": zod.coerce.string().optional()
+export const LoginWithDemoCredentialsBody = zod.object({
+  "username": zod.string(),
+  "password": zod.string()
 })
 
-export const BeginBrowserLoginResponse = zod.void()
+export const LoginWithDemoCredentialsResponse = zod.object({
+  "user": zod.union([zod.object({
+  "id": zod.string(),
+  "username": zod.string(),
+  "email": zod.string().nullable(),
+  "firstName": zod.string().nullable(),
+  "lastName": zod.string().nullable(),
+  "profileImageUrl": zod.string().nullable(),
+  "role": zod.enum(['PRODUCTION_OPERATOR', 'QUALITY_OPERATOR', 'ENGINEERING_OPERATOR', 'STORES_OPERATOR', 'MANAGER', 'ADMIN']),
+  "department": zod.string(),
+  "isDemo": zod.boolean()
+}),zod.null()])
+})
 
 
 /**
- * @summary Complete the browser OIDC login flow
+ * @summary Clear the local demo session
  */
-export const HandleBrowserLoginCallbackQueryParams = zod.object({
-  "code": zod.coerce.string().optional(),
-  "state": zod.coerce.string().optional(),
-  "iss": zod.coerce.string().optional()
-})
-
-export const HandleBrowserLoginCallbackResponse = zod.void()
-
-
-/**
- * @summary Clear the browser session
- */
-export const LogoutBrowserSessionQueryParams = zod.object({
-  "returnTo": zod.coerce.string().optional()
-})
-
-export const LogoutBrowserSessionHeader = zod.object({
-  "Authorization": zod.string().optional()
-})
-
 export const LogoutBrowserSessionResponse = zod.void()
+
+
+/**
+ * @summary List submitted daily records awaiting manager review
+ */
+export const GetApprovalQueueResponseItem = zod.object({
+  "id": zod.string(),
+  "productionDate": zod.coerce.date(),
+  "shift": zod.string(),
+  "status": zod.enum(['SUBMITTED', 'UNDER_REVIEW']),
+  "submittedBy": zod.string(),
+  "submittedAt": zod.coerce.date(),
+  "department": zod.string()
+})
+export const GetApprovalQueueResponse = zod.array(GetApprovalQueueResponseItem)
+
+
+/**
+ * @summary Approve or return a submitted daily record
+ */
+export const ReviewDailyRecordParams = zod.object({
+  "recordId": zod.coerce.string()
+})
+
+export const ReviewDailyRecordBody = zod.object({
+  "action": zod.enum(['START_REVIEW', 'APPROVE', 'REJECT']),
+  "comments": zod.string().optional()
+})
+
+export const ReviewDailyRecordResponse = zod.object({
+  "id": zod.string(),
+  "factoryId": zod.string(),
+  "productionDate": zod.coerce.date(),
+  "season": zod.string(),
+  "shift": zod.string(),
+  "status": zod.enum(['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED']),
+  "source": zod.string(),
+  "production": zod.object({
+
+}),
+  "quality": zod.object({
+
+}),
+  "efficiency": zod.object({
+
+}),
+  "timeAccount": zod.object({
+
+}),
+  "stoppages": zod.array(zod.object({
+
+})),
+  "energy": zod.object({
+
+}),
+  "materials": zod.array(zod.object({
+
+}))
+})
+
+
+/**
+ * @summary List local demo users
+ */
+export const ListUsersResponseItem = zod.object({
+  "id": zod.string(),
+  "username": zod.string(),
+  "email": zod.string(),
+  "role": zod.string(),
+  "department": zod.string(),
+  "isDemo": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+export const ListUsersResponse = zod.array(ListUsersResponseItem)
+
+
+/**
+ * @summary Create a local demo user
+ */
+export const createUserBodyPasswordMin = 4;
+
+
+
+export const CreateUserBody = zod.object({
+  "username": zod.string(),
+  "password": zod.string().min(createUserBodyPasswordMin),
+  "role": zod.string(),
+  "department": zod.string()
+})
+
+export const CreateUserResponse = zod.object({
+  "id": zod.string(),
+  "username": zod.string(),
+  "email": zod.string(),
+  "role": zod.string(),
+  "department": zod.string(),
+  "isDemo": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Reset a local demo user's password
+ */
+export const ResetUserPasswordParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const resetUserPasswordBodyPasswordMin = 4;
+
+
+
+export const ResetUserPasswordBody = zod.object({
+  "password": zod.string().min(resetUserPasswordBodyPasswordMin)
+})
+
+export const ResetUserPasswordResponse = zod.void()
+
+
+/**
+ * @summary List recent access and workflow audit events
+ */
+export const ListAuditLogsResponseItem = zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "role": zod.string(),
+  "department": zod.string(),
+  "action": zod.string(),
+  "entityType": zod.string(),
+  "entityId": zod.string().nullish(),
+  "details": zod.record(zod.string(), zod.unknown()).nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListAuditLogsResponse = zod.array(ListAuditLogsResponseItem)
 
 
 /**
@@ -295,7 +426,7 @@ export const GetDailyOperationsResponse = zod.object({
   "productionDate": zod.coerce.date(),
   "season": zod.string(),
   "shift": zod.string(),
-  "status": zod.enum(['DRAFT', 'SUBMITTED', 'APPROVED']),
+  "status": zod.enum(['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED']),
   "source": zod.string(),
   "production": zod.object({
 
@@ -330,7 +461,7 @@ export const SaveDailyOperationsBody = zod.object({
   "productionDate": zod.coerce.date(),
   "season": zod.string(),
   "shift": zod.string(),
-  "status": zod.enum(['DRAFT', 'SUBMITTED', 'APPROVED']),
+  "status": zod.enum(['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED']),
   "source": zod.string(),
   "production": zod.object({
 
@@ -361,7 +492,7 @@ export const SaveDailyOperationsResponse = zod.object({
   "productionDate": zod.coerce.date(),
   "season": zod.string(),
   "shift": zod.string(),
-  "status": zod.enum(['DRAFT', 'SUBMITTED', 'APPROVED']),
+  "status": zod.enum(['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED']),
   "source": zod.string(),
   "production": zod.object({
 

@@ -121,35 +121,51 @@ function userInitials(user: AuthUser | null) {
   return name ? name.slice(0, 2).toUpperCase() : 'OP';
 }
 
-function Shell({ children, user, logout }: { children: ReactNode; user: AuthUser | null; logout: () => void }) {
+const roleLabels: Record<AuthUser['role'], string> = {
+  PRODUCTION_OPERATOR: 'Production operator',
+  QUALITY_OPERATOR: 'Quality operator',
+  ENGINEERING_OPERATOR: 'Engineering operator',
+  STORES_OPERATOR: 'Stores operator',
+  MANAGER: 'Manager',
+  ADMIN: 'Administrator',
+};
+
+function isLeadership(user: AuthUser | null) {
+  return user?.role === 'MANAGER' || user?.role === 'ADMIN';
+}
+
+function Shell({ children, user, logout }: { children: ReactNode; user: AuthUser | null; logout: () => void | Promise<void> }) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const health = useHealthCheck();
   const displayName = userDisplayName(user);
   const links = [
-    { href: '/', label: 'Daily overview', icon: LayoutDashboard, match: location === '/' },
-    { href: '/daily-operations', label: 'Daily operations', icon: ClipboardPenLine, match: location.startsWith('/daily-operations') },
-    { href: '/reports/latest', label: 'Daily reports', icon: BarChart3, match: location.startsWith('/reports') },
-    { href: '/files', label: 'Source files', icon: FileSpreadsheet, match: location.startsWith('/files') },
-    { href: '/settings', label: 'Readiness', icon: Settings2, match: location.startsWith('/settings') },
-  ];
+    { href: '/', label: 'Daily overview', icon: LayoutDashboard, match: location === '/', visible: isLeadership(user) },
+    { href: '/daily-operations', label: 'Daily operations', icon: ClipboardPenLine, match: location.startsWith('/daily-operations'), visible: true },
+    { href: '/reports/latest', label: 'Daily reports', icon: BarChart3, match: location.startsWith('/reports'), visible: isLeadership(user) },
+    { href: '/files', label: 'Source files', icon: FileSpreadsheet, match: location.startsWith('/files'), visible: isLeadership(user) },
+    { href: '/approval-queue', label: 'Approval queue', icon: CheckCircle2, match: location.startsWith('/approval-queue'), visible: isLeadership(user) },
+    { href: '/audit-log', label: 'Audit log', icon: Clock3, match: location.startsWith('/audit-log'), visible: isLeadership(user) },
+    { href: '/users', label: 'User administration', icon: ShieldCheck, match: location.startsWith('/users'), visible: user?.role === 'ADMIN' },
+    { href: '/settings', label: 'Readiness', icon: Settings2, match: location.startsWith('/settings'), visible: user?.role === 'ADMIN' },
+  ].filter((link) => link.visible);
   return (
     <div className="grain app-shell min-h-[100dvh] text-foreground">
       <aside className={`side-grid fixed inset-y-0 left-0 z-40 w-[252px] bg-sidebar text-sidebar-foreground transition-transform duration-300 md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex h-full flex-col">
-          <div className="flex items-center gap-3 border-b border-sidebar-border px-6 py-6">
+           <div className="flex items-center gap-3 border-b border-sidebar-border px-6 py-6">
             <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-lg"><Gauge size={22} /><span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-sidebar" /></div>
             <div><div className="font-bold tracking-tight">Sugar Factory</div><div className="eyebrow mt-0.5 text-sidebar-foreground/55">Intelligence</div></div>
           </div>
-          <div className="px-4 pt-7"><div className="eyebrow px-3 text-sidebar-foreground/45">Control room</div><nav className="mt-3 space-y-1">{links.map(({ href, label, icon: Icon, match }) => <Link key={href} href={href} onClick={() => setMobileOpen(false)} data-testid={`link-nav-${label.toLowerCase().replaceAll(' ', '-')}`} className={`group flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-semibold transition ${match ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'text-sidebar-foreground/65 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground'}`}><Icon size={17} strokeWidth={match ? 2.5 : 1.8} /><span>{label}</span>{match && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary" />}</Link>)}</nav></div>
+           <div className="px-4 pt-7"><div className="eyebrow px-3 text-sidebar-foreground/45">Control room</div><nav className="mt-3 space-y-1">{links.map(({ href, label, icon: Icon, match }) => <Link key={href} href={href} onClick={() => setMobileOpen(false)} data-testid={`link-nav-${label.toLowerCase().replaceAll(' ', '-')}`} className={`group flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-semibold transition ${match ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'text-sidebar-foreground/65 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground'}`}><Icon size={17} strokeWidth={match ? 2.5 : 1.8} /><span>{label}</span>{match && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary" />}</Link>)}</nav></div>
            <div className="mt-auto border-t border-sidebar-border p-5"><div className="rounded-xl border border-sidebar-border bg-sidebar-accent/60 p-4"><div className="flex items-center gap-2 text-xs font-semibold"><span className={`h-2 w-2 rounded-full ${health.isLoading ? 'bg-amber-300' : health.isError ? 'bg-red-400' : 'bg-emerald-400'}`} />API connection</div><p className="mt-2 text-[11px] leading-relaxed text-sidebar-foreground/55">{health.isError ? 'Connection needs attention.' : 'Source services responding normally.'}</p></div><div className="mt-5 flex items-center gap-2 px-1 text-[10px] text-sidebar-foreground/35"><ShieldCheck size={13} /> Traceable by design</div></div>
         </div>
       </aside>
       {mobileOpen && <button aria-label="Close navigation" onClick={() => setMobileOpen(false)} data-testid="button-close-navigation" className="fixed inset-0 z-30 bg-sidebar/40 md:hidden" />}
       <div className="md:pl-[252px]">
         <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-border/80 bg-background/90 px-5 backdrop-blur-md md:px-10">
-          <div className="flex items-center gap-3"><button onClick={() => setMobileOpen(true)} data-testid="button-open-navigation" className="rounded-md p-2 hover:bg-secondary md:hidden"><Menu size={20} /></button><div className="eyebrow text-muted-foreground">Operations / <span className="text-primary">{location === '/' ? 'today' : location.split('/')[1] || 'today'}</span></div></div>
-           <div className="flex items-center gap-2 sm:gap-3"><div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex"><span className={`h-1.5 w-1.5 rounded-full ${health.isError ? 'bg-red-600' : 'bg-emerald-500'}`} />Live data link</div><div className="hidden h-5 w-px bg-border sm:block" /><button data-testid="button-notifications" aria-label="Notifications" className="relative rounded-md p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground"><Bell size={17} /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-accent" /></button><div className="hidden items-center gap-2 border-l border-border pl-3 sm:flex"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{userInitials(user)}</div><span className="max-w-[150px] truncate text-xs font-semibold text-foreground">{displayName}</span></div><button onClick={logout} data-testid="button-logout" aria-label="Log out" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-2 text-xs font-bold text-muted-foreground transition hover:border-destructive/40 hover:bg-destructive/[.05] hover:text-destructive"><LogOut size={15} /><span className="hidden md:inline">Log out</span></button></div>
+           <div className="flex items-center gap-3"><button onClick={() => setMobileOpen(true)} data-testid="button-open-navigation" className="rounded-md p-2 hover:bg-secondary md:hidden"><Menu size={20} /></button><div className="eyebrow text-muted-foreground">Operations / <span className="text-primary">{location === '/' ? 'today' : location.split('/')[1] || 'today'}</span></div></div>
+           <div className="flex items-center gap-2 sm:gap-3"><div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex"><span className={`h-1.5 w-1.5 rounded-full ${health.isError ? 'bg-red-600' : 'bg-emerald-500'}`} />Live data link</div><div className="hidden h-5 w-px bg-border sm:block" /><button data-testid="button-notifications" aria-label="Notifications" className="relative rounded-md p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground"><Bell size={17} /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-accent" /></button><div className="hidden items-center gap-2 border-l border-border pl-3 sm:flex"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{userInitials(user)}</div><div><span className="block max-w-[150px] truncate text-xs font-semibold text-foreground">{displayName}</span><span className="block text-[10px] text-muted-foreground">{user ? roleLabels[user.role] : ''}</span></div></div><button onClick={() => void logout()} data-testid="button-logout" aria-label="Log out" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-2 text-xs font-bold text-muted-foreground transition hover:border-destructive/40 hover:bg-destructive/[.05] hover:text-destructive"><LogOut size={15} /><span className="hidden md:inline">Log out</span></button></div>
         </header>
         <main className="mx-auto max-w-[1480px] px-5 py-7 md:px-10 md:py-10">{children}</main>
       </div>
@@ -314,11 +330,12 @@ function DataField({
   return <label className="block text-xs font-bold text-foreground/75">{label}<input className={`${fieldClass} ${readOnly ? 'bg-muted/60 text-muted-foreground' : ''}`} type={type} step={step} value={value ?? ''} readOnly={readOnly} onChange={event => onChange?.(event.target.value)} /></label>;
 }
 
-function OperationsSection({ eyebrow, title, children }: { eyebrow: string; title: string; children: ReactNode }) {
-  return <section className="panel rounded-2xl p-5 sm:p-6"><div className="eyebrow text-primary">{eyebrow}</div><h2 className="mt-1 text-lg font-bold tracking-tight">{title}</h2><div className="mt-5 grid gap-4 sm:grid-cols-2">{children}</div></section>;
+function OperationsSection({ eyebrow, title, children, editable = true }: { eyebrow: string; title: string; children: ReactNode; editable?: boolean }) {
+  return <section className="panel rounded-2xl p-5 sm:p-6"><div className="eyebrow text-primary">{eyebrow}</div><div className="flex items-start justify-between gap-3"><h2 className="mt-1 text-lg font-bold tracking-tight">{title}</h2>{!editable && <span className="rounded-full border border-border bg-muted px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">View only</span>}</div><fieldset disabled={!editable} className={`mt-5 min-w-0 border-0 p-0 ${!editable ? 'opacity-60' : ''}`}><div className="grid gap-4 sm:grid-cols-2">{children}</div></fieldset>{!editable && <p className="mt-4 text-xs text-muted-foreground">Only the {title.toLowerCase()} operator or a manager can edit this section.</p>}</section>;
 }
 
 function OperationsPage() {
+  const { user } = useAuth();
   const [form, setForm] = useState<OperationsForm>(operationsInitial);
   const [busy, setBusy] = useState<'DRAFT' | 'SUBMITTED' | null>(null);
   const [notice, setNotice] = useState('');
@@ -339,6 +356,11 @@ function OperationsPage() {
     const used = Number(form.energy.powerUsed);
     return Number.isFinite(generated) && Number.isFinite(used) ? Math.max(0, generated - used) : null;
   }, [form.energy.powerGenerated, form.energy.powerUsed]);
+  const isManager = user?.role === 'MANAGER' || user?.role === 'ADMIN';
+  const canProduction = isManager || user?.role === 'PRODUCTION_OPERATOR';
+  const canQuality = isManager || user?.role === 'QUALITY_OPERATOR';
+  const canEngineering = isManager || user?.role === 'ENGINEERING_OPERATOR';
+  const canStores = isManager || user?.role === 'STORES_OPERATOR';
 
   useEffect(() => {
     let active = true;
@@ -404,12 +426,12 @@ function OperationsPage() {
   };
 
   return <div className="reveal">
-    <PageHeading eyebrow="Centralized data entry" title="Daily operations" detail="Enter the shift record once. Save a draft while the workbook is being reconciled, or submit validated values to update the canonical dashboard." action={<div className="flex flex-wrap gap-2"><StatusPill status={form.status === 'SUBMITTED' ? 'GOOD' : 'WATCH'} label={form.status === 'SUBMITTED' ? 'Submitted' : 'Draft'} /><span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-800">Synthetic demo</span></div>} />
+    <PageHeading eyebrow="Centralized data entry" title="Daily operations" detail="Enter the shift record once. Save a draft while the workbook is being reconciled, or submit validated values to update the canonical dashboard." action={<div className="flex flex-wrap gap-2"><StatusPill status={form.status === 'SUBMITTED' ? 'GOOD' : form.status === 'APPROVED' ? 'GOOD' : 'WATCH'} label={form.status === 'SUBMITTED' ? 'Submitted' : form.status === 'APPROVED' ? 'Approved' : form.status === 'UNDER_REVIEW' ? 'Under review' : 'Draft'} /><span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-800">Synthetic demo</span></div>} />
     <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-primary/20 bg-primary/[.045] p-4 sm:flex-row sm:items-end sm:justify-between"><div><div className="eyebrow text-primary">Bilagi Sugar Mill Ltd. — Badagandi</div><p className="mt-1 text-xs text-muted-foreground">Season 2025–26 · manual entry joins the same canonical model as Excel imports.</p></div><div className="grid grid-cols-2 gap-3 sm:flex"><label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Production date<input className={fieldClass} type="date" value={form.productionDate} onChange={event => setForm(current => ({ ...operationsInitial, productionDate: event.target.value, shift: current.shift }))} /></label><label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Shift<select className={fieldClass} value={form.shift} onChange={event => setForm(current => ({ ...current, shift: event.target.value }))}><option value="GENERAL">General</option><option value="A">Shift A</option><option value="B">Shift B</option><option value="C">Shift C</option></select></label></div></div>
     {notice && <div className="mb-5 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800"><CheckCircle2 size={17} className="mt-0.5 shrink-0" />{notice}</div>}
     {error && <div className="mb-5 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><AlertCircle size={17} className="mt-0.5 shrink-0" />{error}</div>}
     <div className="grid gap-6 xl:grid-cols-2">
-      <OperationsSection eyebrow="01 / production" title="Production output">
+       <OperationsSection eyebrow="01 / production" title="Production output" editable={canProduction}>
         <DataField label="Cane crushed · t" value={form.production.caneCrushed} onChange={value => setSectionValue('production', 'caneCrushed', value)} />
         <DataField label="Sugar produced · t" value={form.production.sugarProduced} onChange={value => setSectionValue('production', 'sugarProduced', value)} />
         <DataField label="Sugar bagged · t" value={form.production.sugarBagged} onChange={value => setSectionValue('production', 'sugarBagged', value)} />
@@ -418,18 +440,18 @@ function OperationsPage() {
         <DataField label="Molasses · t" value={form.production.molasses} onChange={value => setSectionValue('production', 'molasses', value)} />
         <DataField label="Recovery · %" value={recovery?.toFixed(2)} readOnly />
       </OperationsSection>
-      <OperationsSection eyebrow="02 / quality" title="Quality & cane profile">
+       <OperationsSection eyebrow="02 / quality" title="Quality & cane profile" editable={canQuality}>
         <DataField label="Mixed juice brix · %" value={form.quality.brix} onChange={value => setSectionValue('quality', 'brix', value)} />
         <DataField label="Mixed juice pol · %" value={form.quality.pol} onChange={value => setSectionValue('quality', 'pol', value)} />
         <DataField label="Purity · %" value={form.quality.purity} onChange={value => setSectionValue('quality', 'purity', value)} />
         <DataField label="Cane quality note" type="text" value={form.quality.caneQuality} onChange={value => setSectionValue('quality', 'caneQuality', value)} />
       </OperationsSection>
-      <OperationsSection eyebrow="03 / efficiency" title="Plant efficiency">
+       <OperationsSection eyebrow="03 / efficiency" title="Plant efficiency" editable={canEngineering}>
         <DataField label="Mill extraction · %" value={form.efficiency.millExtraction} onChange={value => setSectionValue('efficiency', 'millExtraction', value)} />
         <DataField label="Boiling house efficiency · %" value={form.efficiency.boilingHouseEfficiency} onChange={value => setSectionValue('efficiency', 'boilingHouseEfficiency', value)} />
         <DataField label="Capacity utilization · %" value={form.efficiency.capacityUtilization} onChange={value => setSectionValue('efficiency', 'capacityUtilization', value)} />
       </OperationsSection>
-      <OperationsSection eyebrow="04 / time account" title="Available time & hours lost">
+       <OperationsSection eyebrow="04 / time account" title="Available time & hours lost" editable={canEngineering}>
         <DataField label="Available hours" value={form.timeAccount.availableHours} onChange={value => setSectionValue('timeAccount', 'availableHours', value)} />
         <DataField label="Hours worked" value={form.timeAccount.hoursWorked} onChange={value => setSectionValue('timeAccount', 'hoursWorked', value)} />
         <DataField label="Hours lost · calculated" value={hoursLost?.toFixed(2)} readOnly />
@@ -437,20 +459,117 @@ function OperationsPage() {
         <DataField label="Breakdown · h" value={form.timeAccount.breakdown} onChange={value => setSectionValue('timeAccount', 'breakdown', value)} />
         <DataField label="Cane shortage · h" value={form.timeAccount.caneShortage} onChange={value => setSectionValue('timeAccount', 'caneShortage', value)} />
       </OperationsSection>
-      <OperationsSection eyebrow="05 / energy" title="Power & steam balance">
+       <OperationsSection eyebrow="05 / energy" title="Power & steam balance" editable={canEngineering}>
         <DataField label="Power generated · kWh" value={form.energy.powerGenerated} onChange={value => setSectionValue('energy', 'powerGenerated', value)} />
         <DataField label="Power used · kWh" value={form.energy.powerUsed} onChange={value => setSectionValue('energy', 'powerUsed', value)} />
         <DataField label="Power exported · calculated" value={powerExported?.toFixed(2)} readOnly />
         <DataField label="Steam consumption · t/t cane" value={form.energy.steamConsumption} onChange={value => setSectionValue('energy', 'steamConsumption', value)} />
       </OperationsSection>
-      <section className="panel rounded-2xl p-5 sm:p-6"><div className="eyebrow text-primary">06 / stoppages</div><div className="flex items-start justify-between gap-4"><div><h2 className="mt-1 text-lg font-bold tracking-tight">Stoppage register</h2><p className="mt-1 text-xs text-muted-foreground">Duration is calculated from start and end time.</p></div><button className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-bold hover:bg-secondary" onClick={() => setForm(current => ({ ...current, stoppages: [...current.stoppages, { cause: '', startTime: '', endTime: '' }] }))}><Plus size={14} /> Add</button></div><div className="mt-5 space-y-3">{form.stoppages.map((item, index) => <div key={index} className="grid gap-2 rounded-xl border border-border/70 bg-muted/25 p-3 sm:grid-cols-[1.4fr_.7fr_.7fr_auto] sm:items-end"><DataField label="Cause" type="text" value={item.cause} onChange={value => updateStoppage(index, 'cause', value)} /><DataField label="Start" type="time" value={item.startTime} onChange={value => updateStoppage(index, 'startTime', value)} /><DataField label="End" type="time" value={item.endTime} onChange={value => updateStoppage(index, 'endTime', value)} /><div className="flex items-center justify-between gap-2 sm:pb-2"><span className="mono text-xs font-bold text-primary">{stoppageDuration(item)?.toFixed(2) ?? '—'} h</span><button aria-label="Remove stoppage" className="rounded-md p-2 text-muted-foreground hover:bg-red-50 hover:text-red-700" onClick={() => setForm(current => ({ ...current, stoppages: current.stoppages.filter((_, itemIndex) => itemIndex !== index) }))}><Trash2 size={15} /></button></div></div>)}</div></section>
-      <OperationsSection eyebrow="07 / materials" title="Materials consumed">
+       <fieldset disabled={!canEngineering} className={`min-w-0 border-0 p-0 ${!canEngineering ? 'opacity-60' : ''}`}><section className="panel rounded-2xl p-5 sm:p-6"><div className="eyebrow text-primary">06 / stoppages</div><div className="flex items-start justify-between gap-4"><div><h2 className="mt-1 text-lg font-bold tracking-tight">Stoppage register</h2><p className="mt-1 text-xs text-muted-foreground">Duration is calculated from start and end time.</p></div><button className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-bold hover:bg-secondary" onClick={() => setForm(current => ({ ...current, stoppages: [...current.stoppages, { cause: '', startTime: '', endTime: '' }] }))}><Plus size={14} /> Add</button></div><div className="mt-5 space-y-3">{form.stoppages.map((item, index) => <div key={index} className="grid gap-2 rounded-xl border border-border/70 bg-muted/25 p-3 sm:grid-cols-[1.4fr_.7fr_.7fr_auto] sm:items-end"><DataField label="Cause" type="text" value={item.cause} onChange={value => updateStoppage(index, 'cause', value)} /><DataField label="Start" type="time" value={item.startTime} onChange={value => updateStoppage(index, 'startTime', value)} /><DataField label="End" type="time" value={item.endTime} onChange={value => updateStoppage(index, 'endTime', value)} /><div className="flex items-center justify-between gap-2 sm:pb-2"><span className="mono text-xs font-bold text-primary">{stoppageDuration(item)?.toFixed(2) ?? '—'} h</span><button aria-label="Remove stoppage" className="rounded-md p-2 text-muted-foreground hover:bg-red-50 hover:text-red-700" onClick={() => setForm(current => ({ ...current, stoppages: current.stoppages.filter((_, itemIndex) => itemIndex !== index) }))}><Trash2 size={15} /></button></div></div>)}</div>{!canEngineering && <p className="mt-4 text-xs text-muted-foreground">Only the engineering operator or a manager can edit this section.</p>}</section></fieldset>
+       <OperationsSection eyebrow="07 / materials" title="Materials consumed" editable={canStores}>
         <DataField label="Material" type="text" value={form.materials[0]?.material} onChange={value => setForm(current => ({ ...current, materials: [{ ...current.materials[0], material: value }] }))} />
         <DataField label="Quantity · kg/t cane" value={form.materials[0]?.quantity} onChange={value => setForm(current => ({ ...current, materials: [{ ...current.materials[0], quantity: value }] }))} />
         <DataField label="Unit" type="text" value={form.materials[0]?.unit} onChange={value => setForm(current => ({ ...current, materials: [{ ...current.materials[0], unit: value }] }))} />
       </OperationsSection>
     </div>
-    <div className="sticky bottom-4 z-10 mt-6 flex flex-col gap-3 rounded-2xl border border-border bg-card/95 p-4 shadow-xl backdrop-blur sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-2 text-xs text-muted-foreground"><ShieldCheck size={15} className="text-primary" /><span>Server validation calculates Recovery, Hours Lost and Power Exported before persistence.</span></div><div className="flex gap-2"><button disabled={!!busy} onClick={() => save('DRAFT')} className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-bold transition hover:bg-secondary disabled:opacity-50"><Save size={15} />{busy === 'DRAFT' ? 'Saving…' : 'Save draft'}</button><button disabled={!!busy} onClick={() => save('SUBMITTED')} className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"><Send size={15} />{busy === 'SUBMITTED' ? 'Submitting…' : 'Submit to dashboard'}</button></div></div>
+     <div className="sticky bottom-4 z-10 mt-6 flex flex-col gap-3 rounded-2xl border border-border bg-card/95 p-4 shadow-xl backdrop-blur sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-2 text-xs text-muted-foreground"><ShieldCheck size={15} className="text-primary" /><span>Server validation calculates Recovery, Hours Lost and Power Exported before persistence.</span></div><div className="flex gap-2"><button disabled={!!busy || form.status === 'APPROVED'} onClick={() => save('DRAFT')} className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-bold transition hover:bg-secondary disabled:opacity-50"><Save size={15} />{busy === 'DRAFT' ? 'Saving…' : 'Save draft'}</button><button disabled={!!busy || form.status === 'APPROVED'} onClick={() => save('SUBMITTED')} className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"><Send size={15} />{busy === 'SUBMITTED' ? 'Submitting…' : 'Submit to dashboard'}</button></div></div>
+  </div>;
+}
+
+function AccessDenied(_props: unknown) {
+  return <div className="reveal"><div className="panel flex min-h-80 flex-col items-center justify-center rounded-2xl p-8 text-center"><div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-amber-700"><ShieldCheck size={23} /></div><div className="eyebrow mt-5 text-amber-700">Access restricted</div><h1 className="mt-2 text-2xl font-bold tracking-tight">This view is not assigned to your role</h1><p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">Your role does not have access to this module. Ask a manager or administrator if you need access.</p></div></div>;
+}
+
+function ApprovalQueuePage() {
+  const { user } = useAuth();
+  const [queue, setQueue] = useState<Array<{ id: string; productionDate: string; shift: string; status: string; submittedBy: string; submittedAt: string; department: string }>>([]);
+  const [comments, setComments] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
+
+  const loadQueue = () => fetch('/api/approval-queue', { credentials: 'include' }).then(response => response.ok ? response.json() : Promise.reject(new Error('Could not load the approval queue.'))).then(setQueue).catch(errorValue => setError(errorValue instanceof Error ? errorValue.message : 'Could not load the approval queue.'));
+  useEffect(() => { if (isLeadership(user)) void loadQueue(); }, [user]);
+
+  const review = async (id: string, action: 'START_REVIEW' | 'APPROVE' | 'REJECT') => {
+    setBusy(`${id}:${action}`);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch(`/api/approval-queue/${id}`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, comments: comments[id] || undefined }) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Could not review this record.');
+      setNotice(action === 'APPROVE' ? 'Record approved and locked.' : action === 'START_REVIEW' ? 'Record marked under review.' : 'Record returned to draft for correction.');
+      await loadQueue();
+    } catch (reviewError) {
+      setError(reviewError instanceof Error ? reviewError.message : 'Could not review this record.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (!isLeadership(user)) return <AccessDenied />;
+  return <div className="reveal"><PageHeading eyebrow="Management control" title="Approval queue" detail="Review submitted department records before they become the approved management record." action={<StatusPill status={queue.length ? 'WATCH' : 'GOOD'} label={`${queue.length} awaiting review`} />} />
+    {notice && <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{notice}</div>}
+    {error && <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{error}</div>}
+      <div className="panel overflow-hidden rounded-2xl">{queue.length ? <div className="divide-y divide-border/70">{queue.map(item => <div key={item.id} className="p-5 sm:p-6"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><div className="flex flex-wrap items-center gap-2"><span className="eyebrow text-primary">{item.department}</span><StatusPill status={item.status} label={item.status === 'UNDER_REVIEW' ? 'Under review' : 'Submitted'} /></div><h2 className="mt-2 text-lg font-bold">{dateLabel(item.productionDate)} · {item.shift} shift</h2><p className="mt-1 text-xs text-muted-foreground">Submitted by {item.submittedBy} · {timeLabel(item.submittedAt)}</p></div><div className="flex flex-wrap gap-2">{item.status === 'SUBMITTED' && <button disabled={!!busy} onClick={() => void review(item.id, 'START_REVIEW')} className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-bold disabled:opacity-50"><Clock3 size={14} /> Start review</button>}<button disabled={!!busy} onClick={() => void review(item.id, 'REJECT')} className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-800 disabled:opacity-50"><XCircle size={14} /> Return</button><button disabled={!!busy} onClick={() => void review(item.id, 'APPROVE')} className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground disabled:opacity-50"><Check size={14} /> Approve</button></div></div><input value={comments[item.id] ?? ''} onChange={event => setComments(current => ({ ...current, [item.id]: event.target.value }))} className={fieldClass} placeholder="Optional review comment" /></div>)}</div> : <EmptyState title="Queue is clear" detail="Submitted records will appear here for manager review." icon={<CheckCircle2 size={22} />} />}</div>
+  </div>;
+}
+
+function AuditLogPage() {
+  const { user } = useAuth();
+  const [entries, setEntries] = useState<Array<{ id: string; userId: string; role: string; department: string; action: string; entityType: string; entityId: string | null; details: Record<string, unknown> | null; createdAt: string }>>([]);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    if (!isLeadership(user)) return;
+    fetch('/api/audit-logs', { credentials: 'include' })
+      .then(response => response.ok ? response.json() : Promise.reject(new Error('Could not load the audit log.')))
+      .then(setEntries)
+      .catch(errorValue => setError(errorValue instanceof Error ? errorValue.message : 'Could not load the audit log.'));
+  }, [user]);
+  if (!isLeadership(user)) return <AccessDenied />;
+  return <div className="reveal"><PageHeading eyebrow="Traceability" title="Audit log" detail="Recent operational, approval and user-administration actions with the acting role and department." action={<StatusPill status="GOOD" label={`${entries.length} recent events`} />} />{error && <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{error}</div>}<div className="panel overflow-hidden rounded-2xl">{entries.length ? <div className="divide-y divide-border/70">{entries.map(entry => <div key={entry.id} className="grid gap-3 p-5 sm:grid-cols-[160px_1fr_auto] sm:items-center"><div><div className="mono text-xs font-bold">{new Date(entry.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</div><div className="mt-1 text-[10px] text-muted-foreground">{entry.department}</div></div><div><div className="text-sm font-bold">{entry.action.replaceAll('_', ' ')}</div><div className="mt-1 text-xs text-muted-foreground">{entry.entityType}{entry.entityId ? ` · ${entry.entityId.slice(0, 8)}` : ''}</div></div><span className="rounded-full border border-border bg-muted px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{entry.role.replaceAll('_', ' ')}</span></div>)}</div> : <EmptyState title="No audit events yet" detail="Saved records, approvals and user administration events will appear here." icon={<Clock3 size={22} />} />}</div></div>;
+}
+
+function UsersPage() {
+  const { user } = useAuth();
+  const [users, setUsers] = useState<Array<{ id: string; username: string; email: string; role: string; department: string; isDemo: boolean; createdAt: string }>>([]);
+  const [form, setForm] = useState({ username: '', password: '', role: 'PRODUCTION_OPERATOR', department: 'PRODUCTION' });
+  const [resetPasswords, setResetPasswords] = useState<Record<string, string>>({});
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
+
+  const loadUsers = () => fetch('/api/users', { credentials: 'include' }).then(response => response.ok ? response.json() : Promise.reject(new Error('Could not load users.'))).then(setUsers).catch(errorValue => setError(errorValue instanceof Error ? errorValue.message : 'Could not load users.'));
+  useEffect(() => { if (user?.role === 'ADMIN') void loadUsers(); }, [user]);
+
+  const createUser = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    setNotice('');
+    const response = await fetch('/api/users', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) { setError(result.error || 'Could not create user.'); return; }
+    setNotice(`Created ${form.username}.`);
+    setForm({ username: '', password: '', role: 'PRODUCTION_OPERATOR', department: 'PRODUCTION' });
+    await loadUsers();
+  };
+
+  const resetPassword = async (id: string) => {
+    const password = resetPasswords[id] ?? '';
+    if (!password) return;
+    const response = await fetch(`/api/users/${id}/reset-password`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) { setError(result.error || 'Could not reset password.'); return; }
+    setNotice('Password reset successfully.');
+    setResetPasswords(current => ({ ...current, [id]: '' }));
+  };
+
+  if (user?.role !== 'ADMIN') return <AccessDenied />;
+  return <div className="reveal"><PageHeading eyebrow="Administration" title="User administration" detail="Create department accounts and rotate demo passwords. Passwords are stored as secure hashes only." />
+    {notice && <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{notice}</div>}
+    {error && <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{error}</div>}
+    <div className="grid gap-6 xl:grid-cols-[.8fr_1.2fr]"><form onSubmit={createUser} className="panel rounded-2xl p-6"><div className="eyebrow text-primary">New account</div><h2 className="mt-1 text-lg font-bold">Add a local user</h2><div className="mt-5 space-y-4"><label className="block text-xs font-bold">Username<input required minLength={3} value={form.username} onChange={event => setForm(current => ({ ...current, username: event.target.value }))} className={fieldClass} placeholder="e.g. lab.supervisor" /></label><label className="block text-xs font-bold">Temporary password<input required minLength={4} type="password" value={form.password} onChange={event => setForm(current => ({ ...current, password: event.target.value }))} className={fieldClass} /></label><label className="block text-xs font-bold">Role<select value={form.role} onChange={event => setForm(current => ({ ...current, role: event.target.value }))} className={fieldClass}>{Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="block text-xs font-bold">Department<input required value={form.department} onChange={event => setForm(current => ({ ...current, department: event.target.value }))} className={fieldClass} /></label><button className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground"><Plus size={15} />Create user</button></div></form>
+      <div className="panel overflow-hidden rounded-2xl"><div className="border-b border-border/70 p-6"><div className="eyebrow text-primary">Access roster</div><h2 className="mt-1 text-lg font-bold">{users.length} local accounts</h2></div><div className="divide-y divide-border/70">{users.map(item => <div key={item.id} className="p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><div className="font-bold">{item.username} {item.isDemo && <span className="ml-1 rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-800">Demo</span>}</div><div className="mt-1 text-xs text-muted-foreground">{roleLabels[item.role as AuthUser['role']] ?? item.role} · {item.department}</div></div><div className="flex gap-2"><input type="password" value={resetPasswords[item.id] ?? ''} onChange={event => setResetPasswords(current => ({ ...current, [item.id]: event.target.value }))} className="w-36 rounded-lg border border-border bg-background px-3 py-2 text-xs" placeholder="New password" /><button onClick={() => void resetPassword(item.id)} className="rounded-lg border border-border px-3 py-2 text-xs font-bold hover:bg-secondary">Reset</button></div></div></div>)}</div></div></div>
   </div>;
 }
 
@@ -459,8 +578,10 @@ function SettingsPage() {
   return <div className="reveal"><PageHeading eyebrow="Configuration & readiness" title="System readiness" detail="A concise view of the connections and conventions used to produce trusted daily reports. Configuration is managed by the platform, not in this screen." /><div className="grid gap-6 xl:grid-cols-[1.1fr_.9fr]"><div className="panel rounded-2xl p-6"><div className="eyebrow text-primary">Readiness checks</div><h2 className="mt-1 text-lg font-bold">Can the morning report run?</h2><div className="mt-6 divide-y divide-border/70">{[{ label: 'API service', detail: 'Dashboard and report endpoints', state: health.isError ? 'Needs attention' : health.isLoading ? 'Checking…' : 'Connected', ok: !health.isError && !health.isLoading }, { label: 'Source registry', detail: 'Excel workbook ingestion ledger', state: 'Available', ok: true }, { label: 'Traceability', detail: 'Workbook cell-level lineage', state: 'Enabled', ok: true }, { label: 'Factory context', detail: 'Factory-local production dates', state: 'Configured', ok: true }].map((item) => <div key={item.label} data-testid={`readiness-${item.label.toLowerCase().replaceAll(' ', '-')}`} className="flex items-center gap-4 py-4"><div className={`flex h-9 w-9 items-center justify-center rounded-full ${item.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{item.ok ? <CheckCircle2 size={18} /> : <RefreshCw size={17} />}</div><div className="flex-1"><div className="text-sm font-bold">{item.label}</div><div className="mt-0.5 text-xs text-muted-foreground">{item.detail}</div></div><span className={`text-xs font-bold ${item.ok ? 'text-emerald-700' : 'text-amber-700'}`}>{item.state}</span></div>)}</div></div><div className="panel rounded-2xl p-6"><div className="eyebrow text-primary">Operating contract</div><h2 className="mt-1 text-lg font-bold">What this view guarantees</h2><div className="mt-6 space-y-4">{[{ icon: ShieldCheck, title: 'Numbers stay traceable', text: 'Every KPI can be followed from the report to a workbook, sheet and source cell.' }, { icon: SlidersHorizontal, title: 'No silent assumptions', text: 'Missing or partial data is marked in the view instead of being silently filled.' }, { icon: HardDrive, title: 'Files remain the record', text: 'The source registry preserves processing state, hashes and validation history.' }].map(item => <div key={item.title} className="flex gap-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary"><item.icon size={16} /></div><div><div className="text-sm font-bold">{item.title}</div><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{item.text}</p></div></div>)}</div><div className="mt-7 rounded-xl bg-muted/55 p-4 text-xs leading-relaxed text-muted-foreground"><strong className="text-foreground">Need to change configuration?</strong><br />Contact the platform administrator. This surface intentionally exposes readiness without inventing local edit flows.</div></div></div></div>;
 }
 
-function Router({ user, logout }: { user: AuthUser | null; logout: () => void }) {
-  return <RoutedErrorBoundary><Shell user={user} logout={logout}><Switch><Route path="/" component={Overview} /><Route path="/daily-operations" component={OperationsPage} /><Route path="/reports/:productionDate" component={ReportPage} /><Route path="/files/:fileId" component={FileDetailPage} /><Route path="/files" component={FilesPage} /><Route path="/settings" component={SettingsPage} /><Route component={NotFound} /></Switch></Shell></RoutedErrorBoundary>;
+function Router({ user, logout }: { user: AuthUser | null; logout: () => void | Promise<void> }) {
+  const leadershipPage = isLeadership(user) ? Overview : AccessDenied;
+  const adminPage = user?.role === 'ADMIN' ? SettingsPage : AccessDenied;
+  return <RoutedErrorBoundary><Shell user={user} logout={logout}><Switch><Route path="/" component={leadershipPage} /><Route path="/daily-operations" component={OperationsPage} /><Route path="/reports/:productionDate" component={isLeadership(user) ? ReportPage : AccessDenied} /><Route path="/files/:fileId" component={isLeadership(user) ? FileDetailPage : AccessDenied} /><Route path="/files" component={isLeadership(user) ? FilesPage : AccessDenied} /><Route path="/approval-queue" component={ApprovalQueuePage} /><Route path="/audit-log" component={AuditLogPage} /><Route path="/users" component={UsersPage} /><Route path="/settings" component={adminPage} /><Route component={NotFound} /></Switch></Shell></RoutedErrorBoundary>;
 }
 
 function RoutedErrorBoundary({ children }: { children: ReactNode }) {
@@ -468,7 +589,30 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
   return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>;
 }
 
-function LoginScreen({ onLogin }: { onLogin: () => void }) {
+function LoginScreen({ onLogin }: { onLogin: (username: string, password: string) => Promise<string | null> }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    const message = await onLogin(username, password);
+    if (message) setError(message);
+    setBusy(false);
+  };
+
+  const demoUsers = [
+    ['production', 'Production'],
+    ['quality', 'Quality'],
+    ['engineering', 'Engineering'],
+    ['stores', 'Stores'],
+    ['manager', 'Manager'],
+    ['admin', 'Admin'],
+  ];
+
   return (
     <main className="login-screen grain min-h-[100dvh] overflow-hidden text-foreground">
       <div className="login-atmosphere" aria-hidden="true" />
@@ -513,11 +657,16 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary text-primary"><LockKeyhole size={21} /></div>
               <div className="mt-8 eyebrow text-primary">Good morning</div>
               <h2 className="mt-2 text-[clamp(1.9rem,4vw,2.6rem)] font-bold leading-tight tracking-[-.05em]">Enter the control room</h2>
-              <p className="mt-3 max-w-sm text-sm leading-6 text-muted-foreground">Log in to review today’s factory signal and follow each figure back to its source record.</p>
-              <button onClick={onLogin} data-testid="button-login" className="mt-8 flex w-full items-center justify-between rounded-xl bg-primary px-5 py-4 text-sm font-bold text-primary-foreground shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-                <span>Log in</span><ArrowRight size={18} />
-              </button>
-              <div className="mt-6 flex items-start gap-2.5 border-t border-border/70 pt-5 text-xs leading-5 text-muted-foreground"><ShieldCheck size={15} className="mt-0.5 shrink-0 text-primary" />Access is managed securely. No local credentials are stored in this console.</div>
+               <p className="mt-3 max-w-sm text-sm leading-6 text-muted-foreground">Use your department account to enter the factory control room. Demo credentials are listed below.</p>
+               <form onSubmit={submit} className="mt-7 space-y-4">
+                 <label className="block text-xs font-bold text-foreground/75">Username or email<input autoComplete="username" value={username} onChange={event => setUsername(event.target.value)} data-testid="input-login-username" className={fieldClass} placeholder="e.g. production" /></label>
+                 <label className="block text-xs font-bold text-foreground/75">Password<input autoComplete="current-password" type="password" value={password} onChange={event => setPassword(event.target.value)} data-testid="input-login-password" className={fieldClass} placeholder="Enter demo password" /></label>
+                 {error && <div role="alert" data-testid="text-login-error" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-800">{error}</div>}
+                 <button type="submit" disabled={busy || !username || !password} data-testid="button-login" className="flex w-full items-center justify-between rounded-xl bg-primary px-5 py-4 text-sm font-bold text-primary-foreground shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                   <span>{busy ? 'Signing in…' : 'Log in'}</span><ArrowRight size={18} />
+                 </button>
+               </form>
+               <div className="mt-6 border-t border-border/70 pt-5"><div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.12em] text-muted-foreground"><ShieldCheck size={14} className="text-primary" /> Demo accounts · password: demo123</div><div className="mt-3 grid grid-cols-2 gap-2">{demoUsers.map(([value, label]) => <button type="button" key={value} onClick={() => { setUsername(value); setPassword('demo123'); setError(''); }} className="rounded-lg border border-border bg-background/50 px-3 py-2 text-left text-xs font-semibold transition hover:border-primary/50 hover:bg-secondary"><span className="block">{label}</span><span className="mono text-[10px] text-muted-foreground">{value}</span></button>)}</div></div>
             </div>
             <div className="mt-6 flex items-center justify-between px-1 text-[10px] font-bold uppercase tracking-[.12em] text-muted-foreground/75"><span>Factory-local time</span><span>Source-first operations</span></div>
           </div>

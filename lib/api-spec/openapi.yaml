@@ -161,59 +161,136 @@ paths:
               schema:
                 $ref: "#/components/schemas/AuthUserEnvelope"
   /login:
-    get:
+    post:
       tags: [Auth]
-      operationId: beginBrowserLogin
-      summary: Start the browser OIDC login flow
-      parameters:
-        - name: returnTo
-          in: query
-          required: false
-          schema:
-            type: string
+      operationId: loginWithDemoCredentials
+      summary: Log in with a demo username and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
       responses:
-        "302":
-          description: Redirect to the OIDC authorization endpoint
-  /callback:
-    get:
-      tags: [Auth]
-      operationId: handleBrowserLoginCallback
-      summary: Complete the browser OIDC login flow
-      parameters:
-        - name: code
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: state
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: iss
-          in: query
-          required: false
-          schema:
-            type: string
-      responses:
-        "302":
-          description: Redirect after login
+        "200":
+          description: Login succeeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUserEnvelope"
+        "401":
+          description: Invalid credentials
   /logout:
-    get:
+    post:
       tags: [Auth]
       operationId: logoutBrowserSession
-      summary: Clear the browser session
+      summary: Clear the local demo session
+      responses:
+        "204":
+          description: Session cleared
+  /approval-queue:
+    get:
+      tags: [Auth]
+      operationId: getApprovalQueue
+      summary: List submitted daily records awaiting manager review
+      responses:
+        "200":
+          description: Approval queue
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApprovalQueueItem"
+  /approval-queue/{recordId}:
+    post:
+      tags: [Auth]
+      operationId: reviewDailyRecord
+      summary: Approve or return a submitted daily record
       parameters:
-        - $ref: "#/components/parameters/AuthorizationSessionHeader"
-        - $ref: "#/components/parameters/SessionCookie"
-        - name: returnTo
-          in: query
-          required: false
+        - name: recordId
+          in: path
+          required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewInput"
       responses:
-        "302":
-          description: Redirect after logout
+        "200":
+          description: Reviewed record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyOperations"
+  /users:
+    get:
+      tags: [Auth]
+      operationId: listUsers
+      summary: List local demo users
+      responses:
+        "200":
+          description: Demo users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUser"
+    post:
+      tags: [Auth]
+      operationId: createUser
+      summary: Create a local demo user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserInput"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+  /users/{userId}/reset-password:
+    post:
+      tags: [Auth]
+      operationId: resetUserPassword
+      summary: Reset a local demo user's password
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordInput"
+      responses:
+        "204":
+          description: Password reset
+  /audit-logs:
+    get:
+      tags: [Auth]
+      operationId: listAuditLogs
+      summary: List recent access and workflow audit events
+      responses:
+        "200":
+          description: Recent audit events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditLog"
   /daily-operations/{productionDate}:
     get:
       tags: [dashboard]
@@ -286,9 +363,11 @@ components:
         - status
     AuthUser:
       type: object
-      required: [id, email, firstName, lastName, profileImageUrl]
+      required: [id, username, email, firstName, lastName, profileImageUrl, role, department, isDemo]
       properties:
         id:
+          type: string
+        username:
           type: string
         email:
           type: ["string", "null"]
@@ -298,6 +377,13 @@ components:
           type: ["string", "null"]
         profileImageUrl:
           type: ["string", "null"]
+        role:
+          type: string
+          enum: [PRODUCTION_OPERATOR, QUALITY_OPERATOR, ENGINEERING_OPERATOR, STORES_OPERATOR, MANAGER, ADMIN]
+        department:
+          type: string
+        isDemo:
+          type: boolean
     AuthUserEnvelope:
       type: object
       required: [user]
@@ -306,6 +392,107 @@ components:
           oneOf:
             - $ref: "#/components/schemas/AuthUser"
             - type: "null"
+    LoginInput:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    ApprovalQueueItem:
+      type: object
+      required: [id, productionDate, shift, status, submittedBy, submittedAt, department]
+      properties:
+        id:
+          type: string
+        productionDate:
+          type: string
+          format: date
+        shift:
+          type: string
+        status:
+          type: string
+          enum: [SUBMITTED, UNDER_REVIEW]
+        submittedBy:
+          type: string
+        submittedAt:
+          type: string
+          format: date-time
+        department:
+          type: string
+    ReviewInput:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [START_REVIEW, APPROVE, REJECT]
+        comments:
+          type: string
+    ResetPasswordInput:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+          minLength: 4
+    AuditLog:
+      type: object
+      required: [id, userId, role, department, action, entityType, createdAt]
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        role:
+          type: string
+        department:
+          type: string
+        action:
+          type: string
+        entityType:
+          type: string
+        entityId:
+          type: ["string", "null"]
+        details:
+          type: ["object", "null"]
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+    AdminUser:
+      type: object
+      required: [id, username, email, role, department, isDemo, createdAt]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        department:
+          type: string
+        isDemo:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    CreateUserInput:
+      type: object
+      required: [username, password, role, department]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          minLength: 4
+        role:
+          type: string
+        department:
+          type: string
     DailyOperations:
       type: object
       required: [id, factoryId, productionDate, season, shift, status, source, production, quality, efficiency, timeAccount, stoppages, energy, materials]
@@ -323,7 +510,7 @@ components:
           type: string
         status:
           type: string
-          enum: [DRAFT, SUBMITTED, APPROVED]
+          enum: [DRAFT, SUBMITTED, UNDER_REVIEW, APPROVED]
         source:
           type: string
         production:

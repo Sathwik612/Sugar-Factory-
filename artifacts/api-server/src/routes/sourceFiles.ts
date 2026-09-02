@@ -12,12 +12,11 @@ import {
 import { db } from "@workspace/db";
 import { processingEvents, sourceFiles, validationIssues } from "@workspace/db";
 import { getDemoFactoryId } from "../lib/demoData";
-import { requireAuth } from "../middlewares/authMiddleware";
+import { requireRoles } from "../lib/authz";
 
 const router: IRouter = Router();
-router.use(requireAuth);
 
-router.get("/source-files", async (req, res, next) => {
+router.get("/source-files", requireRoles("MANAGER", "ADMIN"), async (req, res, next) => {
   try {
     const params = ListSourceFilesQueryParams.parse(req.query);
     const factoryId = await getDemoFactoryId();
@@ -53,7 +52,7 @@ router.get("/source-files", async (req, res, next) => {
   }
 });
 
-router.get("/source-files/:fileId", async (req, res, next) => {
+router.get("/source-files/:fileId", requireRoles("MANAGER", "ADMIN"), async (req, res, next) => {
   try {
     const params = GetSourceFileParams.parse(req.params);
     const row = (await db.select().from(sourceFiles).where(eq(sourceFiles.id, params.fileId)).limit(1))[0];
@@ -96,7 +95,7 @@ router.get("/source-files/:fileId", async (req, res, next) => {
   }
 });
 
-router.post("/source-files/upload", async (req, res, next) => {
+router.post("/source-files/upload", requireRoles("MANAGER", "ADMIN"), async (req, res, next) => {
   try {
     const body = UploadSourceFileBody.parse(req.body);
     const factoryId = await getDemoFactoryId();

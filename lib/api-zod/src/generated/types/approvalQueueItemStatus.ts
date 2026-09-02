@@ -6,12 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type DailyOperationsStatus = typeof DailyOperationsStatus[keyof typeof DailyOperationsStatus];
+export type ApprovalQueueItemStatus = typeof ApprovalQueueItemStatus[keyof typeof ApprovalQueueItemStatus];
 
 
-export const DailyOperationsStatus = {
-  DRAFT: 'DRAFT',
+export const ApprovalQueueItemStatus = {
   SUBMITTED: 'SUBMITTED',
   UNDER_REVIEW: 'UNDER_REVIEW',
-  APPROVED: 'APPROVED',
 } as const;

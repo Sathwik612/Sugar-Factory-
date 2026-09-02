@@ -4,9 +4,10 @@ import { db } from "@workspace/db";
 import { anomalies, dailyOperations, kpiValues, productionDays, trendPoints } from "@workspace/db";
 import { getDemoFactoryId } from "../lib/demoData";
 import { requireAuth } from "../middlewares/authMiddleware";
+import { canEditSection } from "../lib/authz";
+import { recordAudit } from "../lib/audit";
 
 const router: IRouter = Router();
-router.use(requireAuth);
 
 const asNumber = (value: unknown) => {
   if (value === null || value === undefined || value === "") return null;
@@ -180,7 +181,7 @@ async function refreshSubmittedComparisons(factoryId: string, productionDate: st
   }
 }
 
-router.get("/daily-operations/:productionDate", async (req, res, next) => {
+router.get("/daily-operations/:productionDate", requireAuth, async (req, res, next) => {
   try {
     const factoryId = await getDemoFactoryId();
     if (!factoryId) {
@@ -194,7 +195,7 @@ router.get("/daily-operations/:productionDate", async (req, res, next) => {
       .where(
         and(
           eq(dailyOperations.factoryId, factoryId),
-          eq(dailyOperations.productionDate, req.params.productionDate),
+          eq(dailyOperations.productionDate, String(req.params.productionDate)),
           eq(dailyOperations.shift, shift),
         ),
       )
@@ -205,24 +206,75 @@ router.get("/daily-operations/:productionDate", async (req, res, next) => {
   }
 });
 
-router.post("/daily-operations", async (req, res, next) => {
+router.post("/daily-operations", requireAuth, async (req, res, next) => {
   try {
     const factoryId = await getDemoFactoryId();
     if (!factoryId) {
       res.status(503).json({ error: "No factory has been configured yet." });
       return;
     }
+    if (!req.user) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+    const actor = req.user;
     const body = asObject(req.body);
-    const validation = validateBody(body);
+    const shift = typeof body.shift === "string" && body.shift ? body.shift : "GENERAL";
+    const [existingRecord] = await db
+      .select()
+      .from(dailyOperations)
+      .where(
+        and(
+          eq(dailyOperations.factoryId, factoryId),
+          eq(dailyOperations.productionDate, body.productionDate as string),
+          eq(dailyOperations.shift, shift),
+        ),
+      )
+      .limit(1);
+
+    if (
+      existingRecord?.status === "APPROVED" &&
+      actor.role !== "MANAGER" &&
+      actor.role !== "ADMIN"
+    ) {
+      res.status(409).json({ error: "Approved records cannot be edited by operators." });
+      return;
+    }
+
+    const scopedBody = {
+      ...body,
+      production: canEditSection(actor, "production")
+        ? body.production
+        : existingRecord?.production ?? {},
+      quality: canEditSection(actor, "quality")
+        ? body.quality
+        : existingRecord?.quality ?? {},
+      efficiency: canEditSection(actor, "engineering")
+        ? body.efficiency
+        : existingRecord?.efficiency ?? {},
+      timeAccount: canEditSection(actor, "engineering")
+        ? body.timeAccount
+        : existingRecord?.timeAccount ?? {},
+      stoppages: canEditSection(actor, "engineering")
+        ? body.stoppages
+        : existingRecord?.stoppages ?? [],
+      energy: canEditSection(actor, "engineering")
+        ? body.energy
+        : existingRecord?.energy ?? {},
+      materials: canEditSection(actor, "stores")
+        ? body.materials
+        : existingRecord?.materials ?? [],
+    };
+    const validation = validateBody(scopedBody);
     if (validation.errors.length) {
       res.status(400).json({ error: "Validation failed", issues: validation.errors });
       return;
     }
 
     const status = body.status === "SUBMITTED" ? "SUBMITTED" : "DRAFT";
-    const shift = typeof body.shift === "string" && body.shift ? body.shift : "GENERAL";
-    const submittedBy = status === "SUBMITTED" ? req.user?.id ?? null : null;
-    const calculated = calculatePayload(body, validation);
+    const submittedBy =
+      status === "SUBMITTED" ? actor.id : existingRecord?.submittedBy ?? null;
+    const calculated = calculatePayload(scopedBody, validation);
     const now = new Date();
     const [record] = await db
       .insert(dailyOperations)
@@ -267,6 +319,14 @@ router.post("/daily-operations", async (req, res, next) => {
         },
       })
       .returning();
+
+    await recordAudit(
+      req,
+      status === "SUBMITTED" ? "SUBMITTED_DAILY_RECORD" : "SAVED_DAILY_RECORD",
+      "daily_operations",
+      record.id,
+      { productionDate: record.productionDate, shift: record.shift, status },
+    );
 
     if (status === "SUBMITTED") {
       let [day] = await db

@@ -11,14 +11,13 @@ import {
   sourceFiles,
 } from "@workspace/db";
 import { getDemoFactoryId } from "../lib/demoData";
-import { requireAuth } from "../middlewares/authMiddleware";
+import { requireRoles } from "../lib/authz";
 
 const router: IRouter = Router();
-router.use(requireAuth);
 
 const toNumber = (value: string | null) => (value === null ? null : Number(value));
 
-router.get("/reports/daily/:productionDate", async (req, res, next) => {
+router.get("/reports/daily/:productionDate", requireRoles("MANAGER", "ADMIN"), async (req, res, next) => {
   try {
     const factoryId = await getDemoFactoryId();
     if (!factoryId) {
@@ -31,7 +30,7 @@ router.get("/reports/daily/:productionDate", async (req, res, next) => {
       .where(
         and(
           eq(productionDays.factoryId, factoryId),
-          eq(productionDays.productionDate, req.params.productionDate),
+          eq(productionDays.productionDate, String(req.params.productionDate)),
         ),
       )
       .limit(1))[0];
@@ -107,14 +106,14 @@ router.get("/reports/daily/:productionDate", async (req, res, next) => {
   }
 });
 
-router.get("/reports/daily/:productionDate/lineage", async (req, res, next) => {
+router.get("/reports/daily/:productionDate/lineage", requireRoles("MANAGER", "ADMIN"), async (req, res, next) => {
   try {
     const factoryId = await getDemoFactoryId();
     const day = factoryId
       ? (await db
           .select()
           .from(productionDays)
-          .where(eq(productionDays.productionDate, req.params.productionDate))
+          .where(eq(productionDays.productionDate, String(req.params.productionDate)))
           .limit(1))[0]
       : undefined;
     if (!day) {

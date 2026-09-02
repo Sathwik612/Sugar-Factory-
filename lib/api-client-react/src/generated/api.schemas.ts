@@ -9,8 +9,21 @@ export interface HealthStatus {
   status: string;
 }
 
+export type AuthUserRole = typeof AuthUserRole[keyof typeof AuthUserRole];
+
+
+export const AuthUserRole = {
+  PRODUCTION_OPERATOR: 'PRODUCTION_OPERATOR',
+  QUALITY_OPERATOR: 'QUALITY_OPERATOR',
+  ENGINEERING_OPERATOR: 'ENGINEERING_OPERATOR',
+  STORES_OPERATOR: 'STORES_OPERATOR',
+  MANAGER: 'MANAGER',
+  ADMIN: 'ADMIN',
+} as const;
+
 export interface AuthUser {
   id: string;
+  username: string;
   /** @nullable */
   email: string | null;
   /** @nullable */
@@ -19,10 +32,92 @@ export interface AuthUser {
   lastName: string | null;
   /** @nullable */
   profileImageUrl: string | null;
+  role: AuthUserRole;
+  department: string;
+  isDemo: boolean;
 }
 
 export interface AuthUserEnvelope {
   user: AuthUser | null;
+}
+
+export interface LoginInput {
+  username: string;
+  password: string;
+}
+
+export type ApprovalQueueItemStatus = typeof ApprovalQueueItemStatus[keyof typeof ApprovalQueueItemStatus];
+
+
+export const ApprovalQueueItemStatus = {
+  SUBMITTED: 'SUBMITTED',
+  UNDER_REVIEW: 'UNDER_REVIEW',
+} as const;
+
+export interface ApprovalQueueItem {
+  id: string;
+  productionDate: string;
+  shift: string;
+  status: ApprovalQueueItemStatus;
+  submittedBy: string;
+  submittedAt: string;
+  department: string;
+}
+
+export type ReviewInputAction = typeof ReviewInputAction[keyof typeof ReviewInputAction];
+
+
+export const ReviewInputAction = {
+  START_REVIEW: 'START_REVIEW',
+  APPROVE: 'APPROVE',
+  REJECT: 'REJECT',
+} as const;
+
+export interface ReviewInput {
+  action: ReviewInputAction;
+  comments?: string;
+}
+
+export interface ResetPasswordInput {
+  /** @minLength 4 */
+  password: string;
+}
+
+/**
+ * @nullable
+ */
+export type AuditLogDetails = { [key: string]: unknown } | null;
+
+export interface AuditLog {
+  id: string;
+  userId: string;
+  role: string;
+  department: string;
+  action: string;
+  entityType: string;
+  /** @nullable */
+  entityId?: string | null;
+  /** @nullable */
+  details?: AuditLogDetails;
+  createdAt: string;
+}
+
+export interface AdminUser {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+  department: string;
+  isDemo: boolean;
+  createdAt: string;
+}
+
+export interface CreateUserInput {
+  username: string;
+  /** @minLength 4 */
+  password: string;
+  role: string;
+  department: string;
 }
 
 export type DailyOperationsStatus = typeof DailyOperationsStatus[keyof typeof DailyOperationsStatus];
@@ -31,6 +126,7 @@ export type DailyOperationsStatus = typeof DailyOperationsStatus[keyof typeof Da
 export const DailyOperationsStatus = {
   DRAFT: 'DRAFT',
   SUBMITTED: 'SUBMITTED',
+  UNDER_REVIEW: 'UNDER_REVIEW',
   APPROVED: 'APPROVED',
 } as const;
 
@@ -309,18 +405,4 @@ export const ListSourceFilesStatus = {
   FAILED: 'FAILED',
   DUPLICATE: 'DUPLICATE',
 } as const;
-
-export type BeginBrowserLoginParams = {
-returnTo?: string;
-};
-
-export type HandleBrowserLoginCallbackParams = {
-code?: string;
-state?: string;
-iss?: string;
-};
-
-export type LogoutBrowserSessionParams = {
-returnTo?: string;
-};
 

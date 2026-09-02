@@ -7,8 +7,8 @@ interface AuthState {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: () => void;
-  logout: () => void;
+  login: (username: string, password: string) => Promise<string | null>;
+  logout: () => Promise<void>;
 }
 
 function getBasePath() {
@@ -46,14 +46,22 @@ export function useAuth(): AuthState {
     };
   }, []);
 
-  const login = useCallback(() => {
-    const base = getBasePath();
-    window.location.href = `/api/login?returnTo=${encodeURIComponent(base)}`;
+  const login = useCallback(async (username: string, password: string) => {
+    const response = await fetch('/api/login', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return data.error || 'Invalid username or password.';
+    setUser(data.user ?? null);
+    return null;
   }, []);
 
-  const logout = useCallback(() => {
-    const base = getBasePath();
-    window.location.href = `/api/logout?returnTo=${encodeURIComponent(base)}`;
+  const logout = useCallback(async () => {
+    await fetch('/api/logout', { method: 'POST', credentials: 'include' });
+    setUser(null);
   }, []);
 
   return {

@@ -4,15 +4,14 @@ import { GetDashboardQueryParams, GetDashboardResponse } from "@workspace/api-zo
 import { db } from "@workspace/db";
 import { anomalies, factories, kpiValues, sourceFiles, trendPoints } from "@workspace/db";
 import { getDemoFactoryId, getProductionDay } from "../lib/demoData";
-import { requireAuth } from "../middlewares/authMiddleware";
+import { requireRoles } from "../lib/authz";
 
 const router: IRouter = Router();
-router.use(requireAuth);
 
 const numberOrNull = (value: string | number | null) =>
   value === null ? null : Number(value);
 
-router.get("/dashboard", async (req, res, next) => {
+router.get("/dashboard", requireRoles("MANAGER", "ADMIN"), async (req, res, next) => {
   try {
     const params = GetDashboardQueryParams.parse(req.query);
     const factoryId = await getDemoFactoryId();
