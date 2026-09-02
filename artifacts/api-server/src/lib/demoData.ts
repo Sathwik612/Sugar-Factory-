@@ -10,6 +10,13 @@ import {
   sourceFiles,
   trendPoints,
   validationIssues,
+  factorySettings,
+  kpiTargets,
+  operationalActions,
+  qualitySamples,
+  storeMovements,
+  maintenanceWorkOrders,
+  operationalAlerts,
 } from "@workspace/db";
 
 const dates = [
@@ -67,6 +74,7 @@ export async function seedDemoData() {
       .where(eq(factories.id, existing[0].id));
     await extendDemoHistory(existing[0].id);
     await refreshDemoComparisons(existing[0].id);
+      await seedOperationsSuite(existing[0].id);
     return existing[0].id;
   }
 
@@ -311,7 +319,72 @@ export async function seedDemoData() {
     },
   ]);
 
+  await seedOperationsSuite(factory.id);
   return factory.id;
+}
+
+async function seedOperationsSuite(factoryId: string) {
+  const [settings] = await db.select({ id: factorySettings.id }).from(factorySettings).where(eq(factorySettings.factoryId, factoryId)).limit(1);
+  if (!settings) {
+    await db.insert(factorySettings).values({
+      factoryId,
+      season: "2025-26",
+      shiftConfig: ["A", "B", "C", "GENERAL"],
+      kpiThresholds: { recovery: { warning: 9.4, critical: 9.1 }, downtime: { warning: 10, critical: 12 }, power_generated: { warning: 11500, critical: 10500 } },
+      targetDefaults: { cane_crushed: 7200, sugar_produced: 690, recovery: 9.7, downtime: 8, power_generated: 12000 },
+    });
+  }
+
+  const [target] = await db.select({ id: kpiTargets.id }).from(kpiTargets).where(eq(kpiTargets.factoryId, factoryId)).limit(1);
+  if (!target) {
+    await db.insert(kpiTargets).values([
+      { factoryId, productionDate: dates[dates.length - 1], shift: "ALL", code: "cane_crushed", label: "Cane crushed", target: "7200", unit: "t", isDemo: true },
+      { factoryId, productionDate: dates[dates.length - 1], shift: "ALL", code: "sugar_produced", label: "Sugar produced", target: "690", unit: "t", isDemo: true },
+      { factoryId, productionDate: dates[dates.length - 1], shift: "ALL", code: "recovery", label: "Recovery", target: "9.7", unit: "%", isDemo: true },
+      { factoryId, productionDate: dates[dates.length - 1], shift: "ALL", code: "downtime", label: "Downtime", target: "8", unit: "h", isDemo: true },
+      { factoryId, productionDate: dates[dates.length - 1], shift: "ALL", code: "power_generated", label: "Power generated", target: "12000", unit: "kWh", isDemo: true },
+    ]);
+  }
+
+  const [handover] = await db.select({ id: operationalActions.id }).from(operationalActions).where(eq(operationalActions.factoryId, factoryId)).limit(1);
+  if (!handover) {
+    await db.insert(operationalActions).values([
+      { factoryId, productionDate: dates[dates.length - 1], shift: "GENERAL", department: "ENGINEERING", kind: "HANDOVER", title: "Boiler vibration to monitor", detail: "Check bearing temperature during the next shift and attach the reading to the maintenance order.", status: "OPEN", isDemo: true },
+      { factoryId, productionDate: dates[dates.length - 1], shift: "GENERAL", department: "PRODUCTION", kind: "ACTION", title: "Review recovery variance", detail: "Production and quality operators to confirm cane quality readings before the 10:00 review.", status: "IN_PROGRESS", isDemo: true },
+    ]);
+  }
+
+  const [sample] = await db.select({ id: qualitySamples.id }).from(qualitySamples).where(eq(qualitySamples.factoryId, factoryId)).limit(1);
+  if (!sample) {
+    await db.insert(qualitySamples).values([
+      { factoryId, productionDate: dates[dates.length - 1], shift: "A", sampleType: "Mixed juice", brix: "18.4", pol: "15.2", purity: "82.6", status: "PASS", notes: "Within the shift operating band.", isDemo: true },
+      { factoryId, productionDate: dates[dates.length - 1], shift: "B", sampleType: "Final molasses", brix: "84.2", pol: "36.1", purity: "42.9", status: "HOLD", notes: "Confirm lab repeat before release.", isDemo: true },
+    ]);
+  }
+
+  const [movement] = await db.select({ id: storeMovements.id }).from(storeMovements).where(eq(storeMovements.factoryId, factoryId)).limit(1);
+  if (!movement) {
+    await db.insert(storeMovements).values([
+      { factoryId, productionDate: dates[dates.length - 1], material: "Lime", movementType: "ISSUE", quantity: "1.4", unit: "kg/t cane", reorderLevel: "900", notes: "Normal daily consumption", isDemo: true },
+      { factoryId, productionDate: dates[dates.length - 1], material: "Boiler chemicals", movementType: "RECEIPT", quantity: "250", unit: "kg", reorderLevel: "500", notes: "Receipt awaiting stores verification", isDemo: true },
+    ]);
+  }
+
+  const [workOrder] = await db.select({ id: maintenanceWorkOrders.id }).from(maintenanceWorkOrders).where(eq(maintenanceWorkOrders.factoryId, factoryId)).limit(1);
+  if (!workOrder) {
+    await db.insert(maintenanceWorkOrders).values([
+      { factoryId, productionDate: dates[dates.length - 1], asset: "Boiler feed pump P-02", issue: "Vibration above routine reading; inspect bearing and coupling.", workType: "BREAKDOWN", priority: "HIGH", status: "IN_PROGRESS", hoursLost: "1.5", assignedTo: "Mechanical team", isDemo: true },
+      { factoryId, productionDate: dates[dates.length - 1], asset: "Centrifugal unit C-04", issue: "Planned lubrication and guard inspection.", workType: "PLANNED", priority: "MEDIUM", status: "OPEN", hoursLost: "0", assignedTo: "Shift engineering", isDemo: true },
+    ]);
+  }
+
+  const [alert] = await db.select({ id: operationalAlerts.id }).from(operationalAlerts).where(eq(operationalAlerts.factoryId, factoryId)).limit(1);
+  if (!alert) {
+    await db.insert(operationalAlerts).values([
+      { factoryId, productionDate: dates[dates.length - 1], kpiCode: "recovery", severity: "CRITICAL", title: "Recovery below target", detail: "Current recovery is below the configured critical threshold. Review quality and cane inputs.", isDemo: true },
+      { factoryId, productionDate: dates[dates.length - 1], kpiCode: "downtime", severity: "WARNING", title: "Downtime review due", detail: "Downtime is above the daily target and needs a Pareto review.", isDemo: true },
+    ]);
+  }
 }
 
 async function extendDemoHistory(factoryId: string) {

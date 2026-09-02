@@ -53,6 +53,7 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
+import OperationsSuitePage from '@/pages/operations-suite';
 import { Link, Route, Router as WouterRouter, Switch, useLocation, useParams } from 'wouter';
 
 const queryClient = new QueryClient();
@@ -142,6 +143,7 @@ function Shell({ children, user, logout }: { children: ReactNode; user: AuthUser
   const links = [
     { href: '/', label: 'Daily overview', icon: LayoutDashboard, match: location === '/', visible: isLeadership(user) },
     { href: '/daily-operations', label: 'Daily operations', icon: ClipboardPenLine, match: location.startsWith('/daily-operations'), visible: true },
+    { href: '/operations-suite', label: 'Operations suite', icon: SlidersHorizontal, match: location.startsWith('/operations-suite'), visible: true },
     { href: '/reports/latest', label: 'Daily reports', icon: BarChart3, match: location.startsWith('/reports'), visible: isLeadership(user) },
     { href: '/files', label: 'Source files', icon: FileSpreadsheet, match: location.startsWith('/files'), visible: isLeadership(user) },
     { href: '/approval-queue', label: 'Approval queue', icon: CheckCircle2, match: location.startsWith('/approval-queue'), visible: isLeadership(user) },
@@ -581,7 +583,7 @@ function SettingsPage() {
 function Router({ user, logout }: { user: AuthUser | null; logout: () => void | Promise<void> }) {
   const leadershipPage = isLeadership(user) ? Overview : AccessDenied;
   const adminPage = user?.role === 'ADMIN' ? SettingsPage : AccessDenied;
-  return <RoutedErrorBoundary><Shell user={user} logout={logout}><Switch><Route path="/" component={leadershipPage} /><Route path="/daily-operations" component={OperationsPage} /><Route path="/reports/:productionDate" component={isLeadership(user) ? ReportPage : AccessDenied} /><Route path="/files/:fileId" component={isLeadership(user) ? FileDetailPage : AccessDenied} /><Route path="/files" component={isLeadership(user) ? FilesPage : AccessDenied} /><Route path="/approval-queue" component={ApprovalQueuePage} /><Route path="/audit-log" component={AuditLogPage} /><Route path="/users" component={UsersPage} /><Route path="/settings" component={adminPage} /><Route component={NotFound} /></Switch></Shell></RoutedErrorBoundary>;
+  return <RoutedErrorBoundary><Shell user={user} logout={logout}><Switch><Route path="/" component={leadershipPage} /><Route path="/daily-operations" component={OperationsPage} /><Route path="/operations-suite" component={OperationsSuitePage} /><Route path="/reports/:productionDate" component={isLeadership(user) ? ReportPage : AccessDenied} /><Route path="/files/:fileId" component={isLeadership(user) ? FileDetailPage : AccessDenied} /><Route path="/files" component={isLeadership(user) ? FilesPage : AccessDenied} /><Route path="/approval-queue" component={ApprovalQueuePage} /><Route path="/audit-log" component={AuditLogPage} /><Route path="/users" component={UsersPage} /><Route path="/settings" component={adminPage} /><Route component={NotFound} /></Switch></Shell></RoutedErrorBoundary>;
 }
 
 function RoutedErrorBoundary({ children }: { children: ReactNode }) {
