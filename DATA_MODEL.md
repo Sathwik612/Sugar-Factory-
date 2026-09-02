@@ -106,6 +106,8 @@ Statuses distinguish `AVAILABLE`, `INCOMPLETE`, `UNAVAILABLE`, and `INVALID`.
 
 Rules hold configurable comparison direction, threshold, baseline method, and severity. An anomaly stores the immutable evaluation result: KPI, actual, baseline, deviation, severity, rule version, explanation, evidence JSON, and acknowledgement fields.
 
+Operational alerts use the latest valid observation for each factory, production date, and rule key. Only one open or acknowledged alert can exist for that key. Severity is latched at the highest level reached until the observation returns inside the warning limit; at that point the alert is automatically resolved. Missing values do not prove recovery and therefore do not resolve an alert. A later breach starts a new alert cycle, while a critical escalation clears the earlier acknowledgement and requires a fresh one.
+
 ### `daily_reports`
 
 `id`, `factory_id`, `production_day_id`, `report_date`, `status`, `report_version`, `input_snapshot_hash`, `html_storage_key`, `generated_at`, `generated_by`, `delivery_status`.

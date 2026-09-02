@@ -1,4 +1,5 @@
-import { boolean, date, jsonb, numeric, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { boolean, date, index, jsonb, numeric, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { usersTable } from "./auth";
 import { factories } from "./factory";
 
@@ -111,8 +112,25 @@ export const operationalAlerts = pgTable("operational_alerts", {
   title: text("title").notNull(),
   detail: text("detail").notNull(),
   status: text("status").notNull().default("OPEN"),
+  observedValue: numeric("observed_value", { precision: 14, scale: 4 }),
+  threshold: numeric("threshold", { precision: 14, scale: 4 }),
+  direction: text("direction"),
+  sourceEntityType: text("source_entity_type"),
+  sourceEntityId: text("source_entity_id"),
   acknowledgedBy: text("acknowledged_by").references(() => usersTable.id),
   acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+  resolvedBy: text("resolved_by").references(() => usersTable.id),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   isDemo: boolean("is_demo").notNull().default(false),
-});
+}, (table) => ({
+  lookupIdx: index("operational_alerts_lookup_idx").on(
+    table.factoryId,
+    table.productionDate,
+    table.kpiCode,
+    table.status,
+  ),
+  oneActiveAlertIdx: uniqueIndex("operational_alerts_one_active_idx")
+    .on(table.factoryId, table.productionDate, table.kpiCode)
+    .where(sql`${table.status} in ('OPEN', 'ACKNOWLEDGED')`),
+}));

@@ -6,6 +6,7 @@ import { getDemoFactoryId } from "../lib/demoData";
 import { requireAuth } from "../middlewares/authMiddleware";
 import { canEditSection } from "../lib/authz";
 import { recordAudit } from "../lib/audit";
+import { evaluateDailyOperationAlerts } from "../lib/operationalAlerts";
 
 const router: IRouter = Router();
 
@@ -389,6 +390,19 @@ router.post("/daily-operations", requireAuth, async (req, res, next) => {
       else await db.insert(trendPoints).values(trendData);
 
       await refreshSubmittedComparisons(factoryId, body.productionDate as string);
+      await evaluateDailyOperationAlerts(req, {
+        factoryId,
+        productionDate: body.productionDate as string,
+        sourceEntityId: record.id,
+        values: {
+          cane_crushed: asNumber(production.caneCrushed),
+          sugar_produced: asNumber(production.sugarProduced),
+          recovery: asNumber(production.recovery),
+          downtime: asNumber(timeAccount.hoursLost),
+          power_generated: asNumber(energy.powerGenerated),
+          steam_consumption: asNumber(energy.steamConsumption),
+        },
+      });
       await db.delete(anomalies).where(
         and(eq(anomalies.factoryId, factoryId), eq(anomalies.productionDayId, day.id)),
       );

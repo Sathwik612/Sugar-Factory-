@@ -20,6 +20,11 @@ import { db } from "@workspace/db";
 import { recordAudit } from "../lib/audit";
 import { requireRoles, type Role } from "../lib/authz";
 import { getDemoFactoryId } from "../lib/demoData";
+import {
+  evaluateMaintenanceAlerts,
+  evaluateQualitySampleAlerts,
+  evaluateStoreMovementAlerts,
+} from "../lib/operationalAlerts";
 
 const router: IRouter = Router();
 const allOperators: Role[] = [
@@ -174,15 +179,31 @@ router.post("/operations-suite/handover", requireRoles(...allOperators), async (
 
 router.patch("/operations-suite/actions/:id", requireRoles(...allOperators), async (req, res, next) => {
   try {
+    const factoryId = await getDemoFactoryId();
+    if (!factoryId) {
+      res.status(503).json({ error: "No demo factory has been configured." });
+      return;
+    }
+    const [existing] = await db.select().from(operationalActions).where(and(
+      eq(operationalActions.id, String(req.params.id)),
+      eq(operationalActions.factoryId, factoryId),
+    )).limit(1);
+    if (!existing) {
+      res.status(404).json({ error: "Action not found." });
+      return;
+    }
+    if (!leadership.includes(req.user!.role as Role) && existing.department !== req.user!.department) {
+      res.status(403).json({ error: "Only the owning department can update this action." });
+      return;
+    }
     const status = ["OPEN", "IN_PROGRESS", "DONE"].includes(req.body?.status) ? req.body.status : "IN_PROGRESS";
     const [updated] = await db.update(operationalActions).set({
       status,
       completedAt: status === "DONE" ? new Date() : null,
-    }).where(eq(operationalActions.id, String(req.params.id))).returning();
-    if (!updated) {
-      res.status(404).json({ error: "Action not found." });
-      return;
-    }
+    }).where(and(
+      eq(operationalActions.id, existing.id),
+      eq(operationalActions.factoryId, factoryId),
+    )).returning();
     await recordAudit(req, "UPDATED_HANDOVER_STATUS", "operational_action", updated.id, { status });
     res.json(updated);
   } catch (error) {
@@ -207,6 +228,7 @@ router.post("/operations-suite/quality", requireRoles("QUALITY_OPERATOR", ...lea
       isDemo: true,
     }).returning();
     await recordAudit(req, "CREATED_QUALITY_SAMPLE", "quality_sample", created.id);
+    await evaluateQualitySampleAlerts(req, created);
     res.status(201).json(created);
   } catch (error) {
     next(error);
@@ -234,6 +256,7 @@ router.post("/operations-suite/stores", requireRoles("STORES_OPERATOR", ...leade
       isDemo: true,
     }).returning();
     await recordAudit(req, "CREATED_STORE_MOVEMENT", "store_movement", created.id);
+    await evaluateStoreMovementAlerts(req, created);
     res.status(201).json(created);
   } catch (error) {
     next(error);
@@ -261,6 +284,7 @@ router.post("/operations-suite/maintenance", requireRoles("ENGINEERING_OPERATOR"
       isDemo: true,
     }).returning();
     await recordAudit(req, "CREATED_MAINTENANCE_ORDER", "maintenance_work_order", created.id);
+    await evaluateMaintenanceAlerts(req, created);
     res.status(201).json(created);
   } catch (error) {
     next(error);
@@ -269,16 +293,29 @@ router.post("/operations-suite/maintenance", requireRoles("ENGINEERING_OPERATOR"
 
 router.patch("/operations-suite/maintenance/:id", requireRoles("ENGINEERING_OPERATOR", ...leadership), async (req, res, next) => {
   try {
+    const factoryId = await getDemoFactoryId();
+    if (!factoryId) {
+      res.status(503).json({ error: "No demo factory has been configured." });
+      return;
+    }
+    const [existing] = await db.select().from(maintenanceWorkOrders).where(and(
+      eq(maintenanceWorkOrders.id, String(req.params.id)),
+      eq(maintenanceWorkOrders.factoryId, factoryId),
+    )).limit(1);
+    if (!existing) {
+      res.status(404).json({ error: "Maintenance order not found." });
+      return;
+    }
     const status = ["OPEN", "IN_PROGRESS", "DONE"].includes(req.body?.status) ? req.body.status : "IN_PROGRESS";
     const [updated] = await db.update(maintenanceWorkOrders).set({
       status,
       completedAt: status === "DONE" ? new Date() : null,
-    }).where(eq(maintenanceWorkOrders.id, String(req.params.id))).returning();
-    if (!updated) {
-      res.status(404).json({ error: "Maintenance order not found." });
-      return;
-    }
+    }).where(and(
+      eq(maintenanceWorkOrders.id, existing.id),
+      eq(maintenanceWorkOrders.factoryId, factoryId),
+    )).returning();
     await recordAudit(req, "UPDATED_MAINTENANCE_STATUS", "maintenance_work_order", updated.id, { status });
+    await evaluateMaintenanceAlerts(req, updated);
     res.json(updated);
   } catch (error) {
     next(error);
@@ -340,15 +377,37 @@ router.patch("/operations-suite/settings", requireRoles("ADMIN"), async (req, re
 
 router.patch("/operations-suite/alerts/:id/acknowledge", requireRoles(...leadership), async (req, res, next) => {
   try {
+    const factoryId = await getDemoFactoryId();
+    if (!factoryId) {
+      res.status(503).json({ error: "No demo factory has been configured." });
+      return;
+    }
+    const [existing] = await db.select().from(operationalAlerts)
+      .where(and(
+        eq(operationalAlerts.id, String(req.params.id)),
+        eq(operationalAlerts.factoryId, factoryId),
+      ))
+      .limit(1);
+    if (!existing) {
+      res.status(404).json({ error: "Alert not found." });
+      return;
+    }
+    if (existing.status === "RESOLVED") {
+      res.status(409).json({ error: "Resolved alerts cannot be acknowledged." });
+      return;
+    }
+    if (existing.status === "ACKNOWLEDGED") {
+      res.json(existing);
+      return;
+    }
     const [updated] = await db.update(operationalAlerts).set({
       status: "ACKNOWLEDGED",
       acknowledgedBy: req.user!.id,
       acknowledgedAt: new Date(),
-    }).where(eq(operationalAlerts.id, String(req.params.id))).returning();
-    if (!updated) {
-      res.status(404).json({ error: "Alert not found." });
-      return;
-    }
+    }).where(and(
+      eq(operationalAlerts.id, existing.id),
+      eq(operationalAlerts.factoryId, factoryId),
+    )).returning();
     await recordAudit(req, "ACKNOWLEDGED_ALERT", "operational_alert", updated.id);
     res.json(updated);
   } catch (error) {
