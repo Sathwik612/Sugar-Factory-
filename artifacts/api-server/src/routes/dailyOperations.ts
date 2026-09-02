@@ -234,6 +234,20 @@ router.post("/daily-operations", requireAuth, async (req, res, next) => {
       )
       .limit(1);
 
+    const expectedUpdatedAt = typeof body.expectedUpdatedAt === "string" ? body.expectedUpdatedAt : null;
+    if (
+      existingRecord &&
+      expectedUpdatedAt &&
+      existingRecord.updatedAt.toISOString() !== expectedUpdatedAt
+    ) {
+      res.status(409).json({
+        error: "The server record changed after this draft was loaded.",
+        code: "DRAFT_CONFLICT",
+        serverRecord: existingRecord,
+      });
+      return;
+    }
+
     if (existingRecord?.status === "APPROVED") {
       res.status(409).json({ error: "Approved records are locked. Use a controlled correction workflow instead of editing directly." });
       return;

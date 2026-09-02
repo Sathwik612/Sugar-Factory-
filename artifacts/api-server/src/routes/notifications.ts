@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { Router, type IRouter } from "express";
-import { db, notificationPreferences, notifications } from "@workspace/db";
+import { db, notificationPreferences, notifications, pushSubscriptions } from "@workspace/db";
 
 import { recordAudit } from "../lib/audit";
 import { getDemoFactoryId } from "../lib/demoData";
@@ -103,6 +103,7 @@ router.patch("/notification-preferences", requireAuth, async (req, res, next) =>
     }
     const allowed = [
       "inAppEnabled",
+      "webPushEnabled",
       "approvalsEnabled",
       "operationalAlertsEnabled",
       "criticalAlertsEnabled",
@@ -123,6 +124,93 @@ router.patch("/notification-preferences", requireAuth, async (req, res, next) =>
       .returning();
     await recordAudit(req, "UPDATED_NOTIFICATION_PREFERENCES", "notification_preferences", updated.id);
     res.json(updated);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/push/config", requireAuth, (_req, res) => {
+  const publicKey = process.env.WEB_PUSH_PUBLIC_KEY?.trim() || null;
+  res.json({ enabled: Boolean(publicKey), publicKey });
+});
+
+router.get("/push-subscriptions", requireAuth, async (req, res, next) => {
+  try {
+    const rows = await db
+      .select({
+        id: pushSubscriptions.id,
+        endpoint: pushSubscriptions.endpoint,
+        userAgent: pushSubscriptions.userAgent,
+        createdAt: pushSubscriptions.createdAt,
+        updatedAt: pushSubscriptions.updatedAt,
+        lastUsedAt: pushSubscriptions.lastUsedAt,
+        revokedAt: pushSubscriptions.revokedAt,
+      })
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, req.user!.id));
+    res.json(rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/push-subscriptions", requireAuth, async (req, res, next) => {
+  try {
+    const factoryId = await getDemoFactoryId();
+    const endpoint = typeof req.body?.endpoint === "string" ? req.body.endpoint.trim() : "";
+    const p256dh = typeof req.body?.keys?.p256dh === "string" ? req.body.keys.p256dh.trim() : "";
+    const auth = typeof req.body?.keys?.auth === "string" ? req.body.keys.auth.trim() : "";
+    if (!factoryId || !endpoint.startsWith("https://") || !p256dh || !auth) {
+      res.status(400).json({ error: "A valid web-push subscription is required." });
+      return;
+    }
+    const [saved] = await db
+      .insert(pushSubscriptions)
+      .values({
+        userId: req.user!.id,
+        factoryId,
+        endpoint,
+        p256dh,
+        auth,
+        userAgent: req.get("user-agent")?.slice(0, 500) ?? null,
+      })
+      .onConflictDoUpdate({
+        target: pushSubscriptions.endpoint,
+        set: {
+          userId: req.user!.id,
+          factoryId,
+          p256dh,
+          auth,
+          userAgent: req.get("user-agent")?.slice(0, 500) ?? null,
+          revokedAt: null,
+          updatedAt: new Date(),
+        },
+      })
+      .returning({ id: pushSubscriptions.id, createdAt: pushSubscriptions.createdAt });
+    await db
+      .update(notificationPreferences)
+      .set({ webPushEnabled: true, updatedAt: new Date() })
+      .where(and(eq(notificationPreferences.userId, req.user!.id), eq(notificationPreferences.factoryId, factoryId)));
+    await recordAudit(req, "WEB_PUSH_SUBSCRIBED", "push_subscription", saved.id);
+    res.status(201).json(saved);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/push-subscriptions/:id", requireAuth, async (req, res, next) => {
+  try {
+    const [revoked] = await db
+      .update(pushSubscriptions)
+      .set({ revokedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(pushSubscriptions.id, String(req.params.id)), eq(pushSubscriptions.userId, req.user!.id)))
+      .returning({ id: pushSubscriptions.id });
+    if (!revoked) {
+      res.status(404).json({ error: "Push subscription not found." });
+      return;
+    }
+    await recordAudit(req, "WEB_PUSH_REVOKED", "push_subscription", revoked.id);
+    res.status(204).end();
   } catch (error) {
     next(error);
   }

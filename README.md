@@ -19,9 +19,12 @@ Sugar Factory Intelligence turns sugar-mill daily operations and Excel/source re
 - Quality laboratory, materials, maintenance, handover, target, and configuration modules
 - Downtime Pareto, KPI drilldown, and data-quality scorecard
 - Responsive operator UI
+- Installable PWA with device-local Daily Operations drafts and explicit conflict resolution
+- Health/readiness probes, graceful shutdown, bounded PostgreSQL pooling, rate limits, and trusted-origin CORS
 - CSV and browser print/PDF export
 
 See [`KT_HANDOVER.md`](./KT_HANDOVER.md) for a detailed product and codebase walkthrough.
+Production runbooks: [`DEPLOYMENT.md`](./DEPLOYMENT.md), [`BACKUPS.md`](./BACKUPS.md), and [`MOBILE.md`](./MOBILE.md).
 
 ## Architecture
 

@@ -2,10 +2,29 @@ import crypto from "node:crypto";
 import type { AuthUser } from "@workspace/api-zod";
 import { db, sessionsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { type Request, type Response } from "express";
+import { type CookieOptions, type Request, type Response } from "express";
 
 export const SESSION_COOKIE = "sid";
 export const SESSION_TTL = 7 * 24 * 60 * 60 * 1000;
+
+function envBoolean(value: string | undefined, fallback: boolean) {
+  if (value === undefined) return fallback;
+  return value.toLowerCase() === "true";
+}
+
+export function sessionCookieOptions(): CookieOptions {
+  const sameSite = process.env.COOKIE_SAME_SITE === "strict" || process.env.COOKIE_SAME_SITE === "none"
+    ? process.env.COOKIE_SAME_SITE
+    : "lax";
+  return {
+    httpOnly: true,
+    secure: envBoolean(process.env.COOKIE_SECURE, process.env.NODE_ENV === "production"),
+    sameSite,
+    path: "/",
+    maxAge: SESSION_TTL,
+    ...(process.env.COOKIE_DOMAIN ? { domain: process.env.COOKIE_DOMAIN } : {}),
+  };
+}
 
 export interface SessionData {
   user: AuthUser;
@@ -85,7 +104,8 @@ export async function deleteSession(sid: string): Promise<void> {
 
 export async function clearSession(res: Response, sid?: string): Promise<void> {
   if (sid) await deleteSession(sid);
-  res.clearCookie(SESSION_COOKIE, { path: "/" });
+  const { maxAge: _maxAge, ...options } = sessionCookieOptions();
+  res.clearCookie(SESSION_COOKIE, options);
 }
 
 export function getSessionId(req: Request): string | undefined {

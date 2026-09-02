@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
@@ -23,6 +23,7 @@ import {
   LockKeyhole,
   LogOut,
   Menu,
+  MoreHorizontal,
   Plus,
   RefreshCw,
   Settings2,
@@ -32,6 +33,8 @@ import {
   Save,
   Trash2,
   Upload,
+  Wifi,
+  WifiOff,
   X,
   XCircle,
 } from 'lucide-react';
@@ -55,6 +58,15 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import OperationsSuitePage from '@/pages/operations-suite';
 import { NotificationCenter } from '@/components/notification-center';
+import {
+  dailyDraftKey,
+  deleteOfflineDraft,
+  getOfflineDraft,
+  listOfflineDrafts,
+  saveOfflineDraft,
+  type DraftSyncState,
+  type OfflineDraft,
+} from '@/lib/offline-drafts';
 import { Link, Route, Router as WouterRouter, Switch, useLocation, useParams } from 'wouter';
 
 const queryClient = new QueryClient();
@@ -136,9 +148,25 @@ function isLeadership(user: AuthUser | null) {
   return user?.role === 'MANAGER' || user?.role === 'ADMIN';
 }
 
+function useNetworkStatus() {
+  const [online, setOnline] = useState(() => navigator.onLine);
+  useEffect(() => {
+    const onOnline = () => setOnline(true);
+    const onOffline = () => setOnline(false);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
+  return online;
+}
+
 function Shell({ children, user, logout }: { children: ReactNode; user: AuthUser | null; logout: () => void | Promise<void> }) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const online = useNetworkStatus();
   const health = useHealthCheck();
   const displayName = userDisplayName(user);
   const links = [
@@ -152,26 +180,51 @@ function Shell({ children, user, logout }: { children: ReactNode; user: AuthUser
     { href: '/users', label: 'User administration', icon: ShieldCheck, match: location.startsWith('/users'), visible: user?.role === 'ADMIN' },
     { href: '/settings', label: 'Readiness', icon: Settings2, match: location.startsWith('/settings'), visible: user?.role === 'ADMIN' },
   ].filter((link) => link.visible);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileOpen(false);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [mobileOpen]);
+  const mobileLinks = [
+    ...(isLeadership(user) ? [{ href: '/', label: 'Overview', icon: LayoutDashboard }] : []),
+    { href: '/daily-operations', label: 'Daily', icon: ClipboardPenLine },
+    { href: '/operations-suite', label: 'Alerts', icon: AlertCircle },
+    ...(isLeadership(user) ? [{ href: '/approval-queue', label: 'Approvals', icon: CheckCircle2 }] : []),
+  ].slice(0, 4);
   return (
     <div className="grain app-shell min-h-[100dvh] text-foreground">
-      <aside className={`side-grid fixed inset-y-0 left-0 z-40 w-[252px] bg-sidebar text-sidebar-foreground transition-transform duration-300 md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside id="primary-navigation" aria-label="Primary navigation" className={`side-grid fixed inset-y-0 left-0 z-40 w-[252px] bg-sidebar text-sidebar-foreground transition-transform duration-300 md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex h-full flex-col">
            <div className="flex items-center gap-3 border-b border-sidebar-border px-6 py-6">
             <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-lg"><Gauge size={22} /><span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-sidebar" /></div>
             <div><div className="font-bold tracking-tight">Sugar Factory</div><div className="eyebrow mt-0.5 text-sidebar-foreground/55">Intelligence</div></div>
           </div>
-           <div className="px-4 pt-7"><div className="eyebrow px-3 text-sidebar-foreground/45">Control room</div><nav className="mt-3 space-y-1">{links.map(({ href, label, icon: Icon, match }) => <Link key={href} href={href} onClick={() => setMobileOpen(false)} data-testid={`link-nav-${label.toLowerCase().replaceAll(' ', '-')}`} className={`group flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-semibold transition ${match ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'text-sidebar-foreground/65 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground'}`}><Icon size={17} strokeWidth={match ? 2.5 : 1.8} /><span>{label}</span>{match && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary" />}</Link>)}</nav></div>
+           <div className="px-4 pt-7"><div className="eyebrow px-3 text-sidebar-foreground/45">Control room</div><nav aria-label="Control room" className="mt-3 space-y-1">{links.map(({ href, label, icon: Icon, match }) => <Link key={href} href={href} onClick={() => setMobileOpen(false)} data-testid={`link-nav-${label.toLowerCase().replaceAll(' ', '-')}`} className={`group flex min-h-11 items-center gap-3 rounded-lg px-3 py-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring ${match ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'text-sidebar-foreground/65 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground'}`}><Icon size={17} strokeWidth={match ? 2.5 : 1.8} /><span>{label}</span>{match && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary" />}</Link>)}</nav></div>
            <div className="mt-auto border-t border-sidebar-border p-5"><div className="rounded-xl border border-sidebar-border bg-sidebar-accent/60 p-4"><div className="flex items-center gap-2 text-xs font-semibold"><span className={`h-2 w-2 rounded-full ${health.isLoading ? 'bg-amber-300' : health.isError ? 'bg-red-400' : 'bg-emerald-400'}`} />API connection</div><p className="mt-2 text-[11px] leading-relaxed text-sidebar-foreground/55">{health.isError ? 'Connection needs attention.' : 'Source services responding normally.'}</p></div><div className="mt-5 flex items-center gap-2 px-1 text-[10px] text-sidebar-foreground/35"><ShieldCheck size={13} /> Traceable by design</div></div>
         </div>
       </aside>
       {mobileOpen && <button aria-label="Close navigation" onClick={() => setMobileOpen(false)} data-testid="button-close-navigation" className="fixed inset-0 z-30 bg-sidebar/40 md:hidden" />}
       <div className="md:pl-[252px]">
         <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-border/80 bg-background/90 px-5 backdrop-blur-md md:px-10">
-           <div className="flex items-center gap-3"><button onClick={() => setMobileOpen(true)} data-testid="button-open-navigation" className="rounded-md p-2 hover:bg-secondary md:hidden"><Menu size={20} /></button><div className="eyebrow text-muted-foreground">Operations / <span className="text-primary">{location === '/' ? 'today' : location.split('/')[1] || 'today'}</span></div></div>
+            <div className="flex items-center gap-3"><button aria-label="Open navigation" aria-expanded={mobileOpen} aria-controls="primary-navigation" onClick={() => setMobileOpen(true)} data-testid="button-open-navigation" className="flex min-h-11 min-w-11 items-center justify-center rounded-md hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:hidden"><Menu size={20} /></button><div className="eyebrow text-muted-foreground">Operations / <span className="text-primary">{location === '/' ? 'today' : location.split('/')[1] || 'today'}</span></div></div>
            <div className="flex items-center gap-2 sm:gap-3"><div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex"><span className={`h-1.5 w-1.5 rounded-full ${health.isError ? 'bg-red-600' : 'bg-emerald-500'}`} />Live data link</div><div className="hidden h-5 w-px bg-border sm:block" /><NotificationCenter user={user} /><div className="hidden items-center gap-2 border-l border-border pl-3 sm:flex"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{userInitials(user)}</div><div><span className="block max-w-[150px] truncate text-xs font-semibold text-foreground">{displayName}</span><span className="block text-[10px] text-muted-foreground">{user ? roleLabels[user.role] : ''}</span></div></div><button onClick={() => void logout()} data-testid="button-logout" aria-label="Log out" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-2 text-xs font-bold text-muted-foreground transition hover:border-destructive/40 hover:bg-destructive/[.05] hover:text-destructive"><LogOut size={15} /><span className="hidden md:inline">Log out</span></button></div>
-        </header>
-        <main className="mx-auto max-w-[1480px] px-5 py-7 md:px-10 md:py-10">{children}</main>
+         </header>
+         {!online && <div role="status" className="sticky top-[72px] z-20 flex items-center justify-center gap-2 bg-amber-500 px-4 py-2 text-xs font-bold text-amber-950"><WifiOff size={15} /> Offline — drafts can be saved on this device.</div>}
+         <main className="mx-auto max-w-[1480px] px-4 py-6 pb-28 sm:px-5 md:px-10 md:py-10 md:pb-10">{children}</main>
       </div>
+       <nav aria-label="Mobile navigation" className="fixed inset-x-0 bottom-0 z-30 grid border-t border-border bg-card/95 px-2 pb-[max(.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_24px_rgba(0,0,0,.08)] backdrop-blur md:hidden" style={{ gridTemplateColumns: `repeat(${mobileLinks.length + 2}, minmax(0, 1fr))` }}>
+         {mobileLinks.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[9px] font-bold ${location === href || (href !== '/' && location.startsWith(href)) ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}><Icon size={18} /><span>{label}</span></Link>)}
+         <button onClick={() => window.dispatchEvent(new Event('open-notification-center'))} className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[9px] font-bold text-muted-foreground"><Bell size={18} /><span>Notices</span></button>
+         <button onClick={() => setMobileOpen(true)} className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[9px] font-bold text-muted-foreground"><MoreHorizontal size={18} /><span>More</span></button>
+       </nav>
     </div>
   );
 }
@@ -279,6 +332,7 @@ function FileDetailPage() {
 }
 
 type OperationsForm = {
+  updatedAt?: string;
   productionDate: string;
   season: string;
   shift: string;
@@ -333,8 +387,9 @@ function DataField({
   return <label className="block text-xs font-bold text-foreground/75">{label}<input className={`${fieldClass} ${readOnly ? 'bg-muted/60 text-muted-foreground' : ''}`} type={type} step={step} value={value ?? ''} readOnly={readOnly} onChange={event => onChange?.(event.target.value)} /></label>;
 }
 
-function OperationsSection({ eyebrow, title, children, editable = true }: { eyebrow: string; title: string; children: ReactNode; editable?: boolean }) {
-  return <section className="panel rounded-2xl p-5 sm:p-6"><div className="eyebrow text-primary">{eyebrow}</div><div className="flex items-start justify-between gap-3"><h2 className="mt-1 text-lg font-bold tracking-tight">{title}</h2>{!editable && <span className="rounded-full border border-border bg-muted px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">View only</span>}</div><fieldset disabled={!editable} className={`mt-5 min-w-0 border-0 p-0 ${!editable ? 'opacity-60' : ''}`}><div className="grid gap-4 sm:grid-cols-2">{children}</div></fieldset>{!editable && <p className="mt-4 text-xs text-muted-foreground">Only the {title.toLowerCase()} operator or a manager can edit this section.</p>}</section>;
+function OperationsSection({ eyebrow, title, children, editable = true, className = '' }: { eyebrow: string; title: string; children: ReactNode; editable?: boolean; className?: string }) {
+  const [expanded, setExpanded] = useState(editable);
+  return <section className={`panel rounded-2xl p-5 sm:p-6 ${className}`}><div className="eyebrow text-primary">{eyebrow}</div><div className="flex items-start justify-between gap-3"><button type="button" aria-expanded={expanded} onClick={() => setExpanded(current => !current)} className="min-h-11 text-left sm:pointer-events-none"><h2 className="mt-1 text-lg font-bold tracking-tight">{title}</h2><span className="mt-1 block text-[10px] font-bold uppercase tracking-wider text-primary sm:hidden">{expanded ? 'Hide section' : 'Show section'}</span></button>{!editable && <span className="rounded-full border border-border bg-muted px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">View only</span>}</div><div className={expanded ? '' : 'max-sm:hidden'}><fieldset disabled={!editable} className={`mt-5 min-w-0 border-0 p-0 ${!editable ? 'opacity-60' : ''}`}><div className="grid gap-4 sm:grid-cols-2">{children}</div></fieldset>{!editable && <p className="mt-4 text-xs text-muted-foreground">Only the {title.toLowerCase()} operator or a manager can edit this section.</p>}</div></section>;
 }
 
 function OperationsPage() {
@@ -343,6 +398,12 @@ function OperationsPage() {
   const [busy, setBusy] = useState<'DRAFT' | 'SUBMITTED' | null>(null);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [syncState, setSyncState] = useState<DraftSyncState>('SYNCED');
+  const [pendingDrafts, setPendingDrafts] = useState<Array<OfflineDraft<OperationsForm>>>([]);
+  const [conflict, setConflict] = useState<{ local: OfflineDraft<OperationsForm>; server: OperationsForm } | null>(null);
+  const online = useNetworkStatus();
+  const previousOnline = useRef(online);
 
   const recovery = useMemo(() => {
     const cane = Number(form.production.caneCrushed);
@@ -365,27 +426,65 @@ function OperationsPage() {
   const canEngineering = isManager || user?.role === 'ENGINEERING_OPERATOR';
   const canStores = isManager || user?.role === 'STORES_OPERATOR';
 
+  const mergeRecord = (record: OperationsForm, fallback: OperationsForm) => ({
+    ...fallback,
+    ...record,
+    production: { ...fallback.production, ...(record.production ?? {}) },
+    quality: { ...fallback.quality, ...(record.quality ?? {}) },
+    efficiency: { ...fallback.efficiency, ...(record.efficiency ?? {}) },
+    timeAccount: { ...fallback.timeAccount, ...(record.timeAccount ?? {}) },
+    energy: { ...fallback.energy, ...(record.energy ?? {}) },
+    stoppages: record.stoppages?.length ? record.stoppages : fallback.stoppages,
+    materials: record.materials?.length ? record.materials : fallback.materials,
+  });
+  const currentDraftKey = user ? dailyDraftKey(user.id, form.productionDate, form.shift) : '';
+  const refreshDrafts = async () => {
+    if (!user) return;
+    setPendingDrafts(await listOfflineDrafts<OperationsForm>(user.id));
+  };
+
   useEffect(() => {
+    if (online && !previousOnline.current) {
+      setNotice('Connection restored. Review and sync the local draft before submitting.');
+      setSyncState(current => current === 'LOCAL_ONLY' || current === 'SYNC_FAILED' ? 'SYNC_PENDING' : current);
+    }
+    previousOnline.current = online;
+  }, [online]);
+
+  useEffect(() => {
+    if (!user) return;
     let active = true;
-    fetch(`/api/daily-operations/${form.productionDate}`, { credentials: 'include' })
-      .then(response => response.ok ? response.json() : null)
-      .then(record => {
-        if (!active || !record) return;
-        setForm(current => ({
-          ...current,
-          ...record,
-          production: { ...current.production, ...(record.production ?? {}) },
-          quality: { ...current.quality, ...(record.quality ?? {}) },
-          efficiency: { ...current.efficiency, ...(record.efficiency ?? {}) },
-          timeAccount: { ...current.timeAccount, ...(record.timeAccount ?? {}) },
-          energy: { ...current.energy, ...(record.energy ?? {}) },
-          stoppages: record.stoppages?.length ? record.stoppages : current.stoppages,
-          materials: record.materials?.length ? record.materials : current.materials,
-        }));
-      })
-      .catch(() => undefined);
+    setLoading(true);
+    setError('');
+    const key = dailyDraftKey(user.id, form.productionDate, form.shift);
+    void (async () => {
+      const local = await getOfflineDraft<OperationsForm>(key).catch(() => null);
+      let server: OperationsForm | null = null;
+      try {
+        if (!online) throw new Error('Offline');
+        const response = await fetch(`/api/daily-operations/${form.productionDate}`, { credentials: 'include' });
+        if (!response.ok) throw new Error('The server record could not be loaded.');
+        server = await response.json();
+      } catch (loadError) {
+        if (!local && online) setError(loadError instanceof Error ? loadError.message : 'The record could not be loaded.');
+      }
+      if (!active) return;
+      if (local) {
+        if (server && local.serverUpdatedAt && server.updatedAt && local.serverUpdatedAt !== server.updatedAt) {
+          setConflict({ local, server });
+          setSyncState('CONFLICT');
+        }
+        setForm(mergeRecord(local.payload, operationsInitial));
+        setSyncState(current => current === 'CONFLICT' ? current : local.state);
+      } else if (server) {
+        setForm(current => mergeRecord(server!, current));
+        setSyncState('SYNCED');
+      }
+      await refreshDrafts().catch(() => undefined);
+      if (active) setLoading(false);
+    })();
     return () => { active = false; };
-  }, [form.productionDate]);
+  }, [form.productionDate, form.shift, user?.id, online]);
 
   const setSectionValue = (section: keyof Pick<OperationsForm, 'production' | 'quality' | 'efficiency' | 'timeAccount' | 'energy'>, key: string, value: string) => {
     setForm(current => ({ ...current, [section]: { ...current[section], [key]: value } }));
@@ -393,26 +492,92 @@ function OperationsPage() {
     setError('');
   };
 
+  const persistLocal = async (state: DraftSyncState) => {
+    if (!user) throw new Error('Sign in before saving a local draft.');
+    const draft: OfflineDraft<OperationsForm> = {
+      key: currentDraftKey,
+      userId: user.id,
+      factoryId: 'bilagi-badagandi',
+      department: user.department,
+      productionDate: form.productionDate,
+      shift: form.shift,
+      payload: { ...form, status: 'DRAFT' },
+      state,
+      updatedAt: new Date().toISOString(),
+      serverUpdatedAt: form.updatedAt ?? null,
+    };
+    await saveOfflineDraft(draft);
+    setSyncState(state);
+    await refreshDrafts();
+    return draft;
+  };
+
   const save = async (status: 'DRAFT' | 'SUBMITTED') => {
     setBusy(status);
     setNotice('');
     setError('');
     try {
+      if (!online) {
+        await persistLocal('SYNC_PENDING');
+        setNotice(status === 'SUBMITTED'
+          ? 'You are offline. This remains a local draft and will not be submitted until you reconnect, sync, and submit again.'
+          : 'Draft saved on this device. It is pending synchronization.');
+        return;
+      }
       const response = await fetch('/api/daily-operations', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, status }),
+        body: JSON.stringify({ ...form, status, expectedUpdatedAt: form.updatedAt }),
       });
       const result = await response.json().catch(() => ({}));
+      if (response.status === 409 && result.code === 'DRAFT_CONFLICT') {
+        const local = await persistLocal('CONFLICT');
+        setConflict({ local, server: result.serverRecord });
+        throw new Error('A newer server record exists. Resolve the conflict before syncing.');
+      }
       if (!response.ok) throw new Error(result.issues?.join(' ') || result.error || 'Could not save this entry.');
       setForm(current => ({ ...current, ...result, status: result.status ?? status }));
+      if (currentDraftKey) await deleteOfflineDraft(currentDraftKey);
+      setSyncState('SYNCED');
+      await refreshDrafts();
       setNotice(status === 'SUBMITTED' ? 'Submitted. The canonical KPIs and dashboard have been updated.' : 'Draft saved. It is not included in the management view until submitted.');
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Could not save this entry.');
+      if (!navigator.onLine) {
+        await persistLocal('SYNC_FAILED').catch(() => undefined);
+        setError('The connection dropped. Your changes were kept as a local draft.');
+      } else {
+        setError(saveError instanceof Error ? saveError.message : 'Could not save this entry.');
+      }
     } finally {
       setBusy(null);
     }
+  };
+
+  const syncDraft = async () => {
+    setSyncState('SYNCING');
+    await save('DRAFT');
+    setNotice(current => current || 'Draft synchronized. Review it, then submit when ready.');
+  };
+
+  const useServerVersion = async () => {
+    if (!conflict) return;
+    setForm(mergeRecord(conflict.server, operationsInitial));
+    await deleteOfflineDraft(conflict.local.key);
+    setConflict(null);
+    setSyncState('SYNCED');
+    await refreshDrafts();
+    setNotice('The server version is now loaded.');
+  };
+
+  const keepLocalVersion = async () => {
+    if (!conflict) return;
+    await saveOfflineDraft({ ...conflict.local, serverUpdatedAt: conflict.server.updatedAt ?? null, state: 'SYNC_PENDING', updatedAt: new Date().toISOString() });
+    setForm(conflict.local.payload);
+    setConflict(null);
+    setSyncState('SYNC_PENDING');
+    await refreshDrafts();
+    setNotice('Local values kept. Sync again to replace the server draft.');
   };
 
   const updateStoppage = (index: number, key: string, value: string) => {
@@ -430,11 +595,23 @@ function OperationsPage() {
 
   return <div className="reveal">
     <PageHeading eyebrow="Centralized data entry" title="Daily operations" detail="Enter the shift record once. Save a draft while the workbook is being reconciled, or submit validated values to update the canonical dashboard." action={<div className="flex flex-wrap gap-2"><StatusPill status={form.status === 'SUBMITTED' ? 'GOOD' : form.status === 'APPROVED' ? 'GOOD' : 'WATCH'} label={form.status === 'SUBMITTED' ? 'Submitted' : form.status === 'APPROVED' ? 'Approved' : form.status === 'UNDER_REVIEW' ? 'Under review' : 'Draft'} /><span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-800">Synthetic demo</span></div>} />
+    <div className="mb-5 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs">
+      <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 font-bold ${online ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'}`}>{online ? <Wifi size={14} /> : <WifiOff size={14} />}{online ? 'Online' : 'Offline'}</span>
+      <span className="rounded-full bg-muted px-3 py-1.5 font-bold text-muted-foreground">Sync: {syncState.toLowerCase().replaceAll('_', ' ')}</span>
+      {pendingDrafts.length > 0 && <span className="rounded-full bg-primary/10 px-3 py-1.5 font-bold text-primary">{pendingDrafts.length} local draft{pendingDrafts.length === 1 ? '' : 's'}</span>}
+      {online && ['LOCAL_ONLY', 'SYNC_PENDING', 'SYNC_FAILED'].includes(syncState) && <button onClick={() => void syncDraft()} disabled={!!busy} className="ml-auto min-h-11 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-primary-foreground disabled:opacity-50">{syncState === 'SYNCING' ? 'Syncing…' : 'Sync current draft'}</button>}
+    </div>
+    {loading && <div role="status" className="mb-5 rounded-xl border border-border bg-muted/50 px-4 py-3 text-sm font-semibold text-muted-foreground">Loading the server record and local drafts…</div>}
+    {conflict && <div className="mb-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
+      <div className="text-sm font-bold">Draft conflict needs review</div>
+      <p className="mt-1 text-xs leading-5">The server changed after this local draft was created. Local cane/sugar: <b>{String(conflict.local.payload.production.caneCrushed)} / {String(conflict.local.payload.production.sugarProduced)}</b>. Server cane/sugar: <b>{String(conflict.server.production?.caneCrushed ?? '—')} / {String(conflict.server.production?.sugarProduced ?? '—')}</b>.</p>
+      <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => void keepLocalVersion()} className="min-h-11 rounded-lg bg-amber-900 px-4 py-2 text-xs font-bold text-white">Keep local values</button><button onClick={() => void useServerVersion()} className="min-h-11 rounded-lg border border-amber-400 bg-white px-4 py-2 text-xs font-bold">Use server version</button></div>
+    </div>}
     <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-primary/20 bg-primary/[.045] p-4 sm:flex-row sm:items-end sm:justify-between"><div><div className="eyebrow text-primary">Bilagi Sugar Mill Ltd. — Badagandi</div><p className="mt-1 text-xs text-muted-foreground">Season 2025–26 · manual entry joins the same canonical model as Excel imports.</p></div><div className="grid grid-cols-2 gap-3 sm:flex"><label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Production date<input className={fieldClass} type="date" value={form.productionDate} onChange={event => setForm(current => ({ ...operationsInitial, productionDate: event.target.value, shift: current.shift }))} /></label><label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Shift<select className={fieldClass} value={form.shift} onChange={event => setForm(current => ({ ...current, shift: event.target.value }))}><option value="GENERAL">General</option><option value="A">Shift A</option><option value="B">Shift B</option><option value="C">Shift C</option></select></label></div></div>
     {notice && <div className="mb-5 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800"><CheckCircle2 size={17} className="mt-0.5 shrink-0" />{notice}</div>}
     {error && <div className="mb-5 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><AlertCircle size={17} className="mt-0.5 shrink-0" />{error}</div>}
     <div className="grid gap-6 xl:grid-cols-2">
-       <OperationsSection eyebrow="01 / production" title="Production output" editable={canProduction}>
+       <OperationsSection eyebrow="01 / production" title="Production output" editable={canProduction} className={user?.role === 'PRODUCTION_OPERATOR' ? 'order-first' : ''}>
         <DataField label="Cane crushed · t" value={form.production.caneCrushed} onChange={value => setSectionValue('production', 'caneCrushed', value)} />
         <DataField label="Sugar produced · t" value={form.production.sugarProduced} onChange={value => setSectionValue('production', 'sugarProduced', value)} />
         <DataField label="Sugar bagged · t" value={form.production.sugarBagged} onChange={value => setSectionValue('production', 'sugarBagged', value)} />
@@ -443,18 +620,18 @@ function OperationsPage() {
         <DataField label="Molasses · t" value={form.production.molasses} onChange={value => setSectionValue('production', 'molasses', value)} />
         <DataField label="Recovery · %" value={recovery?.toFixed(2)} readOnly />
       </OperationsSection>
-       <OperationsSection eyebrow="02 / quality" title="Quality & cane profile" editable={canQuality}>
+        <OperationsSection eyebrow="02 / quality" title="Quality & cane profile" editable={canQuality} className={user?.role === 'QUALITY_OPERATOR' ? 'order-first' : ''}>
         <DataField label="Mixed juice brix · %" value={form.quality.brix} onChange={value => setSectionValue('quality', 'brix', value)} />
         <DataField label="Mixed juice pol · %" value={form.quality.pol} onChange={value => setSectionValue('quality', 'pol', value)} />
         <DataField label="Purity · %" value={form.quality.purity} onChange={value => setSectionValue('quality', 'purity', value)} />
         <DataField label="Cane quality note" type="text" value={form.quality.caneQuality} onChange={value => setSectionValue('quality', 'caneQuality', value)} />
       </OperationsSection>
-       <OperationsSection eyebrow="03 / efficiency" title="Plant efficiency" editable={canEngineering}>
+        <OperationsSection eyebrow="03 / efficiency" title="Plant efficiency" editable={canEngineering} className={user?.role === 'ENGINEERING_OPERATOR' ? 'order-first' : ''}>
         <DataField label="Mill extraction · %" value={form.efficiency.millExtraction} onChange={value => setSectionValue('efficiency', 'millExtraction', value)} />
         <DataField label="Boiling house efficiency · %" value={form.efficiency.boilingHouseEfficiency} onChange={value => setSectionValue('efficiency', 'boilingHouseEfficiency', value)} />
         <DataField label="Capacity utilization · %" value={form.efficiency.capacityUtilization} onChange={value => setSectionValue('efficiency', 'capacityUtilization', value)} />
       </OperationsSection>
-       <OperationsSection eyebrow="04 / time account" title="Available time & hours lost" editable={canEngineering}>
+        <OperationsSection eyebrow="04 / time account" title="Available time & hours lost" editable={canEngineering} className={user?.role === 'ENGINEERING_OPERATOR' ? 'order-first' : ''}>
         <DataField label="Available hours" value={form.timeAccount.availableHours} onChange={value => setSectionValue('timeAccount', 'availableHours', value)} />
         <DataField label="Hours worked" value={form.timeAccount.hoursWorked} onChange={value => setSectionValue('timeAccount', 'hoursWorked', value)} />
         <DataField label="Hours lost · calculated" value={hoursLost?.toFixed(2)} readOnly />
@@ -462,20 +639,20 @@ function OperationsPage() {
         <DataField label="Breakdown · h" value={form.timeAccount.breakdown} onChange={value => setSectionValue('timeAccount', 'breakdown', value)} />
         <DataField label="Cane shortage · h" value={form.timeAccount.caneShortage} onChange={value => setSectionValue('timeAccount', 'caneShortage', value)} />
       </OperationsSection>
-       <OperationsSection eyebrow="05 / energy" title="Power & steam balance" editable={canEngineering}>
+        <OperationsSection eyebrow="05 / energy" title="Power & steam balance" editable={canEngineering} className={user?.role === 'ENGINEERING_OPERATOR' ? 'order-first' : ''}>
         <DataField label="Power generated · kWh" value={form.energy.powerGenerated} onChange={value => setSectionValue('energy', 'powerGenerated', value)} />
         <DataField label="Power used · kWh" value={form.energy.powerUsed} onChange={value => setSectionValue('energy', 'powerUsed', value)} />
         <DataField label="Power exported · calculated" value={powerExported?.toFixed(2)} readOnly />
         <DataField label="Steam consumption · t/t cane" value={form.energy.steamConsumption} onChange={value => setSectionValue('energy', 'steamConsumption', value)} />
       </OperationsSection>
        <fieldset disabled={!canEngineering} className={`min-w-0 border-0 p-0 ${!canEngineering ? 'opacity-60' : ''}`}><section className="panel rounded-2xl p-5 sm:p-6"><div className="eyebrow text-primary">06 / stoppages</div><div className="flex items-start justify-between gap-4"><div><h2 className="mt-1 text-lg font-bold tracking-tight">Stoppage register</h2><p className="mt-1 text-xs text-muted-foreground">Duration is calculated from start and end time.</p></div><button className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-bold hover:bg-secondary" onClick={() => setForm(current => ({ ...current, stoppages: [...current.stoppages, { cause: '', startTime: '', endTime: '' }] }))}><Plus size={14} /> Add</button></div><div className="mt-5 space-y-3">{form.stoppages.map((item, index) => <div key={index} className="grid gap-2 rounded-xl border border-border/70 bg-muted/25 p-3 sm:grid-cols-[1.4fr_.7fr_.7fr_auto] sm:items-end"><DataField label="Cause" type="text" value={item.cause} onChange={value => updateStoppage(index, 'cause', value)} /><DataField label="Start" type="time" value={item.startTime} onChange={value => updateStoppage(index, 'startTime', value)} /><DataField label="End" type="time" value={item.endTime} onChange={value => updateStoppage(index, 'endTime', value)} /><div className="flex items-center justify-between gap-2 sm:pb-2"><span className="mono text-xs font-bold text-primary">{stoppageDuration(item)?.toFixed(2) ?? '—'} h</span><button aria-label="Remove stoppage" className="rounded-md p-2 text-muted-foreground hover:bg-red-50 hover:text-red-700" onClick={() => setForm(current => ({ ...current, stoppages: current.stoppages.filter((_, itemIndex) => itemIndex !== index) }))}><Trash2 size={15} /></button></div></div>)}</div>{!canEngineering && <p className="mt-4 text-xs text-muted-foreground">Only the engineering operator or a manager can edit this section.</p>}</section></fieldset>
-       <OperationsSection eyebrow="07 / materials" title="Materials consumed" editable={canStores}>
+        <OperationsSection eyebrow="07 / materials" title="Materials consumed" editable={canStores} className={user?.role === 'STORES_OPERATOR' ? 'order-first' : ''}>
         <DataField label="Material" type="text" value={form.materials[0]?.material} onChange={value => setForm(current => ({ ...current, materials: [{ ...current.materials[0], material: value }] }))} />
         <DataField label="Quantity · kg/t cane" value={form.materials[0]?.quantity} onChange={value => setForm(current => ({ ...current, materials: [{ ...current.materials[0], quantity: value }] }))} />
         <DataField label="Unit" type="text" value={form.materials[0]?.unit} onChange={value => setForm(current => ({ ...current, materials: [{ ...current.materials[0], unit: value }] }))} />
       </OperationsSection>
     </div>
-     <div className="sticky bottom-4 z-10 mt-6 flex flex-col gap-3 rounded-2xl border border-border bg-card/95 p-4 shadow-xl backdrop-blur sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-2 text-xs text-muted-foreground"><ShieldCheck size={15} className="text-primary" /><span>Server validation calculates Recovery, Hours Lost and Power Exported before persistence.</span></div><div className="flex gap-2"><button disabled={!!busy || form.status === 'APPROVED'} onClick={() => save('DRAFT')} className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-bold transition hover:bg-secondary disabled:opacity-50"><Save size={15} />{busy === 'DRAFT' ? 'Saving…' : 'Save draft'}</button><button disabled={!!busy || form.status === 'APPROVED'} onClick={() => save('SUBMITTED')} className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"><Send size={15} />{busy === 'SUBMITTED' ? 'Submitting…' : 'Submit to dashboard'}</button></div></div>
+      <div className="sticky bottom-20 z-10 mt-6 flex flex-col gap-3 rounded-2xl border border-border bg-card/95 p-4 shadow-xl backdrop-blur sm:flex-row sm:items-center sm:justify-between md:bottom-4"><div className="flex items-center gap-2 text-xs text-muted-foreground"><ShieldCheck size={15} className="text-primary" /><span>{online ? 'Server validation calculates Recovery, Hours Lost and Power Exported before persistence.' : 'Offline changes remain a device-only draft. Submission is server-authoritative.'}</span></div><div className="flex gap-2"><button disabled={!!busy || form.status === 'APPROVED'} onClick={() => save('DRAFT')} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-bold transition hover:bg-secondary disabled:opacity-50"><Save size={15} />{busy === 'DRAFT' ? 'Saving…' : online ? 'Save draft' : 'Save on device'}</button><button disabled={!!busy || form.status === 'APPROVED'} onClick={() => save('SUBMITTED')} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"><Send size={15} />{busy === 'SUBMITTED' ? 'Submitting…' : online ? 'Submit to dashboard' : 'Keep pending'}</button></div></div>
   </div>;
 }
 

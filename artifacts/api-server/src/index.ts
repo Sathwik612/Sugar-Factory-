@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { seedDemoData } from "./lib/demoData";
 import { seedDemoUsers } from "./routes/auth";
+import { closeDatabase } from "@workspace/db";
 
 const rawPort = process.env["PORT"];
 
@@ -18,15 +19,46 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 async function start() {
-  await seedDemoUsers();
-  await seedDemoData();
-  app.listen(port, (err) => {
-    if (err) {
-      logger.error({ err }, "Error listening on port");
-      process.exit(1);
-    }
-
+  const shouldSeedDemo = process.env.SEED_DEMO_DATA === "true" || process.env.NODE_ENV !== "production";
+  if (shouldSeedDemo) {
+    await seedDemoUsers();
+    await seedDemoData();
+  }
+  const server = app.listen(port, () => {
     logger.info({ port }, "Server listening");
+  });
+  let shuttingDown = false;
+  const shutdown = async (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.info({ signal }, "Graceful shutdown started");
+    const forceTimer = setTimeout(() => {
+      logger.error({ signal }, "Graceful shutdown timed out");
+      process.exit(1);
+    }, Number(process.env.SHUTDOWN_TIMEOUT_MS ?? "10000"));
+    forceTimer.unref();
+    server.close(async (error) => {
+      if (error) logger.error({ err: error }, "HTTP server close failed");
+      try {
+        await closeDatabase();
+        logger.info({ signal }, "Database pool closed");
+        clearTimeout(forceTimer);
+        process.exit(error ? 1 : 0);
+      } catch (dbError) {
+        logger.error({ err: dbError }, "Database pool close failed");
+        process.exit(1);
+      }
+    });
+  };
+  process.once("SIGTERM", () => void shutdown("SIGTERM"));
+  process.once("SIGINT", () => void shutdown("SIGINT"));
+  process.once("uncaughtException", (error) => {
+    logger.fatal({ err: error }, "Uncaught exception");
+    void shutdown("uncaughtException");
+  });
+  process.once("unhandledRejection", (error) => {
+    logger.fatal({ err: error }, "Unhandled rejection");
+    void shutdown("unhandledRejection");
   });
 }
 

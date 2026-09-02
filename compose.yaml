@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${PGDATABASE:-sugar_factory}
+      POSTGRES_USER: ${PGUSER:-sugar_factory}
+      POSTGRES_PASSWORD: ${PGPASSWORD:?Set PGPASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: ${PGUSER:-sugar_factory}
+      PGPASSWORD: ${PGPASSWORD:?Set PGPASSWORD}
+      PGDATABASE: ${PGDATABASE:-sugar_factory}
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

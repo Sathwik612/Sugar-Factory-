@@ -11,6 +11,7 @@ import {
   createSession,
   getSessionId,
   hashPassword,
+  sessionCookieOptions,
   toAuthUser,
   verifyPassword,
   type SessionData,
@@ -101,13 +102,7 @@ export async function seedDemoUsers() {
 }
 
 function setSessionCookie(res: Response, sid: string) {
-  res.cookie("sid", sid, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
+  res.cookie("sid", sid, sessionCookieOptions());
 }
 
 router.get("/auth/user", (req: Request, res: Response) => {

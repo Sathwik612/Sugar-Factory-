@@ -198,6 +198,7 @@ export const notificationPreferences = pgTable("notification_preferences", {
   factoryId: uuid("factory_id").notNull().references(() => factories.id),
   inAppEnabled: boolean("in_app_enabled").notNull().default(true),
   emailEnabled: boolean("email_enabled").notNull().default(false),
+  webPushEnabled: boolean("web_push_enabled").notNull().default(false),
   approvalsEnabled: boolean("approvals_enabled").notNull().default(true),
   operationalAlertsEnabled: boolean("operational_alerts_enabled").notNull().default(true),
   criticalAlertsEnabled: boolean("critical_alerts_enabled").notNull().default(true),
@@ -209,4 +210,21 @@ export const notificationPreferences = pgTable("notification_preferences", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
   userFactoryIdx: uniqueIndex("notification_preferences_user_factory_idx").on(table.userId, table.factoryId),
+}));
+
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: varchar("user_id").notNull().references(() => usersTable.id),
+  factoryId: uuid("factory_id").notNull().references(() => factories.id),
+  endpoint: text("endpoint").notNull(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+}, (table) => ({
+  endpointIdx: uniqueIndex("push_subscriptions_endpoint_idx").on(table.endpoint),
+  userActiveIdx: index("push_subscriptions_user_active_idx").on(table.userId, table.revokedAt),
 }));

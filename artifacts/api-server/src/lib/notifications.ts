@@ -27,6 +27,7 @@ export const NOTIFICATION_TYPES = {
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
 export type NotificationSeverity = "INFO" | "WARNING" | "CRITICAL";
+export const NOTIFICATION_CHANNELS = ["IN_APP", "WEB_PUSH", "EMAIL", "SMS", "WHATSAPP"] as const;
 
 const OPERATIONAL_ALERT_TYPES = new Set<NotificationType>([
   NOTIFICATION_TYPES.CRITICAL_ALERT,

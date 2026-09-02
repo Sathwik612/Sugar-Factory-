@@ -29,6 +29,7 @@ type NotificationResponse = {
 
 type Preferences = {
   inAppEnabled: boolean;
+  webPushEnabled: boolean;
   approvalsEnabled: boolean;
   operationalAlertsEnabled: boolean;
   criticalAlertsEnabled: boolean;
@@ -73,6 +74,8 @@ export function NotificationCenter({ user }: { user: AuthUser | null }) {
   const [data, setData] = useState<NotificationResponse>(initialData);
   const [preferences, setPreferences] = useState<Preferences | null>(null);
   const [error, setError] = useState("");
+  const [pushConfig, setPushConfig] = useState<{ enabled: boolean; publicKey: string | null } | null>(null);
+  const [pushMessage, setPushMessage] = useState("");
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -99,6 +102,12 @@ export function NotificationCenter({ user }: { user: AuthUser | null }) {
     };
   }, [load, user]);
 
+  useEffect(() => {
+    const openCenter = () => setOpen(true);
+    window.addEventListener("open-notification-center", openCenter);
+    return () => window.removeEventListener("open-notification-center", openCenter);
+  }, []);
+
   const markRead = async (item: NotificationItem) => {
     if (!item.isRead) {
       await fetch(`/api/notifications/${item.id}/read`, { method: "PATCH", credentials: "include" });
@@ -114,9 +123,65 @@ export function NotificationCenter({ user }: { user: AuthUser | null }) {
   };
 
   const loadPreferences = async () => {
-    const response = await fetch("/api/notification-preferences", { credentials: "include" });
+    const [response, configResponse] = await Promise.all([
+      fetch("/api/notification-preferences", { credentials: "include" }),
+      fetch("/api/push/config", { credentials: "include" }),
+    ]);
     if (response.ok) setPreferences(await response.json());
+    if (configResponse.ok) setPushConfig(await configResponse.json());
     setShowSettings(true);
+  };
+
+  const applicationServerKey = (value: string) => {
+    const padding = "=".repeat((4 - value.length % 4) % 4);
+    const binary = atob((value + padding).replace(/-/g, "+").replace(/_/g, "/"));
+    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  };
+
+  const toggleWebPush = async () => {
+    setPushMessage("");
+    if (!pushConfig?.enabled || !pushConfig.publicKey) {
+      setPushMessage("Web push is ready in the application but no VAPID public key is configured.");
+      return;
+    }
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setPushMessage("This browser does not support web push.");
+      return;
+    }
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const current = await registration.pushManager.getSubscription();
+      if (current) {
+        const serverSubscriptions = await fetch("/api/push-subscriptions", { credentials: "include" }).then((response) => response.json());
+        await Promise.all((serverSubscriptions as Array<{ id: string }>).map((subscription) =>
+          fetch(`/api/push-subscriptions/${subscription.id}`, { method: "DELETE", credentials: "include" }),
+        ));
+        await current.unsubscribe();
+        await updatePreference("webPushEnabled", false);
+        setPushMessage("Web push disabled for this device.");
+        return;
+      }
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setPushMessage("Push permission was not granted.");
+        return;
+      }
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: applicationServerKey(pushConfig.publicKey),
+      });
+      const response = await fetch("/api/push-subscriptions", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(subscription.toJSON()),
+      });
+      if (!response.ok) throw new Error("Subscription could not be saved.");
+      setPreferences((currentPreferences) => currentPreferences ? { ...currentPreferences, webPushEnabled: true } : currentPreferences);
+      setPushMessage("Web push enabled for this device.");
+    } catch (pushError) {
+      setPushMessage(pushError instanceof Error ? pushError.message : "Web push could not be enabled.");
+    }
   };
 
   const updatePreference = async (key: keyof Preferences, value: boolean) => {
@@ -156,6 +221,8 @@ export function NotificationCenter({ user }: { user: AuthUser | null }) {
           <button onClick={() => setShowSettings(false)} className="mb-4 text-xs font-bold text-primary">← Back to notifications</button>
           <h3 className="text-sm font-bold">In-app notification preferences</h3>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">Email, SMS and WhatsApp delivery remain disabled until a provider is configured.</p>
+          <button onClick={() => void toggleWebPush()} className="mt-4 flex min-h-11 w-full items-center justify-between rounded-xl border border-border px-3 py-3 text-left text-xs font-bold"><span><span className="block">Web push on this device</span><span className="mt-1 block font-normal text-muted-foreground">{pushConfig?.enabled ? "Opt in only when you want browser notifications." : "Provider keys are not configured yet."}</span></span><span className={`rounded-full px-2 py-1 text-[9px] uppercase ${preferences?.webPushEnabled ? "bg-emerald-50 text-emerald-800" : "bg-muted text-muted-foreground"}`}>{preferences?.webPushEnabled ? "Enabled" : "Off"}</span></button>
+          {pushMessage && <p className="mt-2 rounded-lg bg-muted px-3 py-2 text-[11px] text-muted-foreground">{pushMessage}</p>}
           <div className="mt-4 space-y-2">{preferences ? preferenceLabels.map(([key, label]) => <label key={key} className="flex items-center justify-between rounded-xl border border-border/70 px-3 py-3 text-xs font-bold"><span>{label}</span><input type="checkbox" checked={preferences[key]} onChange={(event) => void updatePreference(key, event.target.checked)} className="h-4 w-4 accent-primary" /></label>) : <div className="py-8 text-center text-xs text-muted-foreground">Loading preferences…</div>}</div>
         </div> : <>
           <div className="grid grid-cols-4 gap-1 border-b border-border bg-muted/30 p-3 text-center"><div><div className="font-mono text-sm font-bold">{data.categories.approvals}</div><div className="text-[8px] uppercase tracking-wider text-muted-foreground">Approvals</div></div><div><div className="font-mono text-sm font-bold text-red-700">{data.categories.operationalAlerts}</div><div className="text-[8px] uppercase tracking-wider text-muted-foreground">Alerts</div></div><div><div className="font-mono text-sm font-bold">{data.categories.dataChanges}</div><div className="text-[8px] uppercase tracking-wider text-muted-foreground">Data</div></div><div><div className="font-mono text-sm font-bold">{data.categories.actions}</div><div className="text-[8px] uppercase tracking-wider text-muted-foreground">Actions</div></div></div>

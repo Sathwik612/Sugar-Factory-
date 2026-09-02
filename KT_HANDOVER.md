@@ -46,6 +46,10 @@ The current demo is synthetic and clearly labeled. It is not production factory 
   - CSV export and browser print/save-as-PDF
 - Automatic alert evaluation after daily operation, quality, stores, and maintenance writes
 - Alert deduplication, escalation, acknowledgement, resolution, and audit events
+- Installable PWA shell with mobile bottom navigation and 44px primary touch targets
+- IndexedDB Daily Operations drafts with reconnect, sync, and explicit conflict handling
+- Server-authoritative submission, push-subscription persistence, readiness checks, graceful shutdown, rate limiting, and bounded database pooling
+- Docker/reverse-proxy, backup/restore, deployment, and mobile operating runbooks
 
 ### Still pending
 
