@@ -9,6 +9,7 @@ import approvalRouter from "./approval";
 import usersRouter from "./users";
 import auditLogsRouter from "./auditLogs";
 import operationsSuiteRouter from "./operationsSuite";
+import notificationsRouter from "./notifications";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(approvalRouter);
 router.use(usersRouter);
 router.use(auditLogsRouter);
 router.use(operationsSuiteRouter);
+router.use(notificationsRouter);
 
 export default router;

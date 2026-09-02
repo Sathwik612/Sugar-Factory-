@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
-import { boolean, date, index, jsonb, numeric, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, date, index, jsonb, numeric, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
 import { usersTable } from "./auth";
-import { factories } from "./factory";
+import { dailyOperations, factories } from "./factory";
 
 export const factorySettings = pgTable("factory_settings", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -133,4 +133,80 @@ export const operationalAlerts = pgTable("operational_alerts", {
   oneActiveAlertIdx: uniqueIndex("operational_alerts_one_active_idx")
     .on(table.factoryId, table.productionDate, table.kpiCode)
     .where(sql`${table.status} in ('OPEN', 'ACKNOWLEDGED')`),
+}));
+
+export const approvalAssignments = pgTable("approval_assignments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  factoryId: uuid("factory_id").notNull().references(() => factories.id),
+  department: text("department").notNull(),
+  reviewerRole: text("reviewer_role").notNull().default("MANAGER"),
+  active: boolean("active").notNull().default(true),
+  createdBy: varchar("created_by").references(() => usersTable.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  factoryDepartmentIdx: uniqueIndex("approval_assignments_factory_department_idx").on(table.factoryId, table.department),
+}));
+
+export const approvalTasks = pgTable("approval_tasks", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  factoryId: uuid("factory_id").notNull().references(() => factories.id),
+  relatedRecordId: uuid("related_record_id").notNull().references(() => dailyOperations.id),
+  productionDate: date("production_date").notNull(),
+  department: text("department").notNull(),
+  submittedBy: varchar("submitted_by").references(() => usersTable.id),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }).defaultNow().notNull(),
+  reviewerRole: text("reviewer_role").notNull(),
+  reviewerId: varchar("reviewer_id").references(() => usersTable.id),
+  status: text("status").notNull().default("PENDING"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewedBy: varchar("reviewed_by").references(() => usersTable.id),
+  decision: text("decision"),
+  returnReason: text("return_reason"),
+  priority: text("priority").notNull().default("NORMAL"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  recordIdx: uniqueIndex("approval_tasks_related_record_idx").on(table.relatedRecordId),
+  queueIdx: index("approval_tasks_queue_idx").on(table.factoryId, table.reviewerRole, table.status, table.createdAt),
+}));
+
+export const notifications = pgTable("notifications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: varchar("user_id").notNull().references(() => usersTable.id),
+  factoryId: uuid("factory_id").notNull().references(() => factories.id),
+  type: text("type").notNull(),
+  severity: text("severity").notNull().default("INFO"),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id"),
+  actionUrl: text("action_url"),
+  dedupeKey: text("dedupe_key").notNull(),
+  isDemo: boolean("is_demo").notNull().default(false),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  readAt: timestamp("read_at", { withTimezone: true }),
+}, (table) => ({
+  userUnreadIdx: index("notifications_user_unread_idx").on(table.userId, table.isRead, table.createdAt),
+  factoryStatusIdx: index("notifications_factory_status_idx").on(table.factoryId, table.type, table.createdAt),
+  dedupeIdx: uniqueIndex("notifications_dedupe_idx").on(table.userId, table.dedupeKey),
+}));
+
+export const notificationPreferences = pgTable("notification_preferences", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: varchar("user_id").notNull().references(() => usersTable.id),
+  factoryId: uuid("factory_id").notNull().references(() => factories.id),
+  inAppEnabled: boolean("in_app_enabled").notNull().default(true),
+  emailEnabled: boolean("email_enabled").notNull().default(false),
+  approvalsEnabled: boolean("approvals_enabled").notNull().default(true),
+  operationalAlertsEnabled: boolean("operational_alerts_enabled").notNull().default(true),
+  criticalAlertsEnabled: boolean("critical_alerts_enabled").notNull().default(true),
+  dataReturnsEnabled: boolean("data_returns_enabled").notNull().default(true),
+  dataApprovalsEnabled: boolean("data_approvals_enabled").notNull().default(true),
+  maintenanceAlertsEnabled: boolean("maintenance_alerts_enabled").notNull().default(true),
+  storesAlertsEnabled: boolean("stores_alerts_enabled").notNull().default(true),
+  qualityAlertsEnabled: boolean("quality_alerts_enabled").notNull().default(true),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  userFactoryIdx: uniqueIndex("notification_preferences_user_factory_idx").on(table.userId, table.factoryId),
 }));

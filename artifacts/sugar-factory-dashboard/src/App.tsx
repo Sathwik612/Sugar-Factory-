@@ -54,6 +54,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import OperationsSuitePage from '@/pages/operations-suite';
+import { NotificationCenter } from '@/components/notification-center';
 import { Link, Route, Router as WouterRouter, Switch, useLocation, useParams } from 'wouter';
 
 const queryClient = new QueryClient();
@@ -167,7 +168,7 @@ function Shell({ children, user, logout }: { children: ReactNode; user: AuthUser
       <div className="md:pl-[252px]">
         <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-border/80 bg-background/90 px-5 backdrop-blur-md md:px-10">
            <div className="flex items-center gap-3"><button onClick={() => setMobileOpen(true)} data-testid="button-open-navigation" className="rounded-md p-2 hover:bg-secondary md:hidden"><Menu size={20} /></button><div className="eyebrow text-muted-foreground">Operations / <span className="text-primary">{location === '/' ? 'today' : location.split('/')[1] || 'today'}</span></div></div>
-           <div className="flex items-center gap-2 sm:gap-3"><div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex"><span className={`h-1.5 w-1.5 rounded-full ${health.isError ? 'bg-red-600' : 'bg-emerald-500'}`} />Live data link</div><div className="hidden h-5 w-px bg-border sm:block" /><button data-testid="button-notifications" aria-label="Notifications" className="relative rounded-md p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground"><Bell size={17} /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-accent" /></button><div className="hidden items-center gap-2 border-l border-border pl-3 sm:flex"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{userInitials(user)}</div><div><span className="block max-w-[150px] truncate text-xs font-semibold text-foreground">{displayName}</span><span className="block text-[10px] text-muted-foreground">{user ? roleLabels[user.role] : ''}</span></div></div><button onClick={() => void logout()} data-testid="button-logout" aria-label="Log out" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-2 text-xs font-bold text-muted-foreground transition hover:border-destructive/40 hover:bg-destructive/[.05] hover:text-destructive"><LogOut size={15} /><span className="hidden md:inline">Log out</span></button></div>
+           <div className="flex items-center gap-2 sm:gap-3"><div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex"><span className={`h-1.5 w-1.5 rounded-full ${health.isError ? 'bg-red-600' : 'bg-emerald-500'}`} />Live data link</div><div className="hidden h-5 w-px bg-border sm:block" /><NotificationCenter user={user} /><div className="hidden items-center gap-2 border-l border-border pl-3 sm:flex"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{userInitials(user)}</div><div><span className="block max-w-[150px] truncate text-xs font-semibold text-foreground">{displayName}</span><span className="block text-[10px] text-muted-foreground">{user ? roleLabels[user.role] : ''}</span></div></div><button onClick={() => void logout()} data-testid="button-logout" aria-label="Log out" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-2 text-xs font-bold text-muted-foreground transition hover:border-destructive/40 hover:bg-destructive/[.05] hover:text-destructive"><LogOut size={15} /><span className="hidden md:inline">Log out</span></button></div>
         </header>
         <main className="mx-auto max-w-[1480px] px-5 py-7 md:px-10 md:py-10">{children}</main>
       </div>
@@ -484,16 +485,34 @@ function AccessDenied(_props: unknown) {
 
 function ApprovalQueuePage() {
   const { user } = useAuth();
-  const [queue, setQueue] = useState<Array<{ id: string; productionDate: string; shift: string; status: string; submittedBy: string; submittedAt: string; department: string }>>([]);
+  const [queue, setQueue] = useState<Array<{ id: string; productionDate: string; shift: string; status: string; submittedBy: string; submittedAt: string; department: string; priority?: string; reviewerRole?: string }>>([]);
+  const [summary, setSummary] = useState({ pending: 0, highPriority: 0, returned: 0, approvedToday: 0 });
+  const [filters, setFilters] = useState({ department: 'ALL', status: 'ALL', submitter: '' });
   const [comments, setComments] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
 
-  const loadQueue = () => fetch('/api/approval-queue', { credentials: 'include' }).then(response => response.ok ? response.json() : Promise.reject(new Error('Could not load the approval queue.'))).then(setQueue).catch(errorValue => setError(errorValue instanceof Error ? errorValue.message : 'Could not load the approval queue.'));
+  const loadQueue = async () => {
+    try {
+      const [queueResponse, summaryResponse] = await Promise.all([
+        fetch('/api/approval-queue', { credentials: 'include' }),
+        fetch('/api/approval-summary', { credentials: 'include' }),
+      ]);
+      if (!queueResponse.ok || !summaryResponse.ok) throw new Error('Could not load the approval center.');
+      setQueue(await queueResponse.json());
+      setSummary(await summaryResponse.json());
+    } catch (errorValue) {
+      setError(errorValue instanceof Error ? errorValue.message : 'Could not load the approval center.');
+    }
+  };
   useEffect(() => { if (isLeadership(user)) void loadQueue(); }, [user]);
 
   const review = async (id: string, action: 'START_REVIEW' | 'APPROVE' | 'REJECT') => {
+    if (action === 'REJECT' && !comments[id]?.trim()) {
+      setError('Enter a return reason before returning this submission.');
+      return;
+    }
     setBusy(`${id}:${action}`);
     setError('');
     setNotice('');
@@ -501,7 +520,7 @@ function ApprovalQueuePage() {
       const response = await fetch(`/api/approval-queue/${id}`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, comments: comments[id] || undefined }) });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || 'Could not review this record.');
-      setNotice(action === 'APPROVE' ? 'Record approved and locked.' : action === 'START_REVIEW' ? 'Record marked under review.' : 'Record returned to draft for correction.');
+      setNotice(action === 'APPROVE' ? 'Record approved, locked, and the submitter was notified.' : action === 'START_REVIEW' ? 'Record marked under review.' : 'Record returned for correction and the submitter was notified.');
       await loadQueue();
     } catch (reviewError) {
       setError(reviewError instanceof Error ? reviewError.message : 'Could not review this record.');
@@ -510,11 +529,20 @@ function ApprovalQueuePage() {
     }
   };
 
+  const filteredQueue = queue.filter(item =>
+    (filters.department === 'ALL' || item.department === filters.department) &&
+    (filters.status === 'ALL' || item.status === filters.status) &&
+    (!filters.submitter || item.submittedBy.toLowerCase().includes(filters.submitter.toLowerCase())),
+  ).sort((left, right) => left.priority === right.priority ? new Date(right.submittedAt).getTime() - new Date(left.submittedAt).getTime() : left.priority === 'HIGH' ? -1 : 1);
+  const departments = [...new Set(queue.map(item => item.department))];
+
   if (!isLeadership(user)) return <AccessDenied />;
-  return <div className="reveal"><PageHeading eyebrow="Management control" title="Approval queue" detail="Review submitted department records before they become the approved management record." action={<StatusPill status={queue.length ? 'WATCH' : 'GOOD'} label={`${queue.length} awaiting review`} />} />
+  return <div className="reveal"><PageHeading eyebrow="Management control" title="Approval center" detail="Review assigned department records, return incomplete data with a reason, and lock approved records." action={<StatusPill status={queue.length ? 'WATCH' : 'GOOD'} label={`${queue.length} awaiting review`} />} />
     {notice && <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{notice}</div>}
     {error && <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{error}</div>}
-      <div className="panel overflow-hidden rounded-2xl">{queue.length ? <div className="divide-y divide-border/70">{queue.map(item => <div key={item.id} className="p-5 sm:p-6"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><div className="flex flex-wrap items-center gap-2"><span className="eyebrow text-primary">{item.department}</span><StatusPill status={item.status} label={item.status === 'UNDER_REVIEW' ? 'Under review' : 'Submitted'} /></div><h2 className="mt-2 text-lg font-bold">{dateLabel(item.productionDate)} · {item.shift} shift</h2><p className="mt-1 text-xs text-muted-foreground">Submitted by {item.submittedBy} · {timeLabel(item.submittedAt)}</p></div><div className="flex flex-wrap gap-2">{item.status === 'SUBMITTED' && <button disabled={!!busy} onClick={() => void review(item.id, 'START_REVIEW')} className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-bold disabled:opacity-50"><Clock3 size={14} /> Start review</button>}<button disabled={!!busy} onClick={() => void review(item.id, 'REJECT')} className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-800 disabled:opacity-50"><XCircle size={14} /> Return</button><button disabled={!!busy} onClick={() => void review(item.id, 'APPROVE')} className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground disabled:opacity-50"><Check size={14} /> Approve</button></div></div><input value={comments[item.id] ?? ''} onChange={event => setComments(current => ({ ...current, [item.id]: event.target.value }))} className={fieldClass} placeholder="Optional review comment" /></div>)}</div> : <EmptyState title="Queue is clear" detail="Submitted records will appear here for manager review." icon={<CheckCircle2 size={22} />} />}</div>
+    <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[['Pending', summary.pending], ['High priority', summary.highPriority], ['Returned', summary.returned], ['Approved today', summary.approvedToday]].map(([label, value]) => <div key={label} className="panel rounded-xl p-4"><div className="eyebrow text-muted-foreground">{label}</div><div className="mt-2 font-mono text-2xl font-bold">{value}</div></div>)}</div>
+    <div className="panel mb-5 grid gap-3 rounded-xl p-4 sm:grid-cols-3"><label className="text-xs font-bold">Department<select value={filters.department} onChange={event => setFilters(current => ({ ...current, department: event.target.value }))} className={fieldClass}><option value="ALL">All departments</option>{departments.map(department => <option key={department}>{department}</option>)}</select></label><label className="text-xs font-bold">Status<select value={filters.status} onChange={event => setFilters(current => ({ ...current, status: event.target.value }))} className={fieldClass}><option value="ALL">All pending states</option><option value="SUBMITTED">Submitted</option><option value="UNDER_REVIEW">Under review</option></select></label><label className="text-xs font-bold">Submitter<input value={filters.submitter} onChange={event => setFilters(current => ({ ...current, submitter: event.target.value }))} className={fieldClass} placeholder="Filter by username" /></label></div>
+      <div className="panel overflow-hidden rounded-2xl">{filteredQueue.length ? <div className="divide-y divide-border/70">{filteredQueue.map(item => <div key={item.id} className="p-5 sm:p-6"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><div className="flex flex-wrap items-center gap-2"><span className="eyebrow text-primary">{item.department}</span><StatusPill status={item.status} label={item.status === 'UNDER_REVIEW' ? 'Under review' : 'Submitted'} />{item.priority === 'HIGH' && <StatusPill status="WARNING" label="High priority" />}</div><h2 className="mt-2 text-lg font-bold">{dateLabel(item.productionDate)} · {item.shift} shift</h2><p className="mt-1 text-xs text-muted-foreground">Submitted by {item.submittedBy} · {timeLabel(item.submittedAt)} · assigned to {item.reviewerRole?.toLowerCase()}</p></div><div className="flex flex-wrap gap-2">{item.status === 'SUBMITTED' && <button disabled={!!busy} onClick={() => void review(item.id, 'START_REVIEW')} className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-bold disabled:opacity-50"><Clock3 size={14} /> Start review</button>}<button disabled={!!busy} onClick={() => void review(item.id, 'REJECT')} className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-800 disabled:opacity-50"><XCircle size={14} /> Return</button><button disabled={!!busy} onClick={() => void review(item.id, 'APPROVE')} className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground disabled:opacity-50"><Check size={14} /> Approve</button></div></div><input value={comments[item.id] ?? ''} onChange={event => setComments(current => ({ ...current, [item.id]: event.target.value }))} className={fieldClass} placeholder="Return reason required; approval comment optional" /></div>)}</div> : <EmptyState title="No records match these filters" detail="Change the filters or wait for a new department submission." icon={<CheckCircle2 size={22} />} />}</div>
   </div>;
 }
 

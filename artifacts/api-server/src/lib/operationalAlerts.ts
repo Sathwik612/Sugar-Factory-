@@ -3,6 +3,7 @@ import type { Request } from "express";
 import { db, factorySettings, maintenanceWorkOrders, operationalAlerts, qualitySamples, storeMovements } from "@workspace/db";
 
 import { recordAudit } from "./audit";
+import { NOTIFICATION_TYPES, notifyRoles, type NotificationType } from "./notifications";
 
 type AlertSeverity = "WARNING" | "CRITICAL";
 type Direction = "above" | "below";
@@ -109,6 +110,40 @@ function mergeSeverity(left: AlertSeverity | null, right: AlertSeverity | null):
   return severityRank(left) >= severityRank(right) ? left : right;
 }
 
+function notificationTypeFor(observation: Observation, severity: AlertSeverity): NotificationType {
+  if (observation.kpiCode.startsWith("quality_status:")) return NOTIFICATION_TYPES.QUALITY_HOLD;
+  if (observation.kpiCode.startsWith("store:")) return NOTIFICATION_TYPES.STORES_REORDER;
+  if (observation.kpiCode.startsWith("maintenance:")) return NOTIFICATION_TYPES.MAINTENANCE_PRIORITY;
+  return severity === "CRITICAL" ? NOTIFICATION_TYPES.CRITICAL_ALERT : NOTIFICATION_TYPES.WARNING_ALERT;
+}
+
+async function notifyAlertAudience(
+  req: Request,
+  alertId: string,
+  observation: Observation,
+  type: NotificationType,
+  severity: AlertSeverity | "INFO",
+  title: string,
+  message: string,
+  stateKey: string,
+) {
+  await notifyRoles(
+    req,
+    observation.factoryId,
+    severity === "CRITICAL" ? ["MANAGER", "ADMIN"] : ["MANAGER"],
+    {
+      type,
+      severity,
+      title,
+      message,
+      entityType: "operational_alert",
+      entityId: alertId,
+      actionUrl: `/operations-suite?date=${observation.productionDate}`,
+      dedupeKey: `operational-alert:${alertId}:${stateKey}`,
+    },
+  );
+}
+
 async function syncObservation(req: Request, observation: Observation): Promise<void> {
   // Missing measurements are unknown, not healthy. Only an explicit terminal
   // condition such as a completed maintenance order may resolve without a value.
@@ -150,6 +185,16 @@ async function syncObservation(req: Request, observation: Observation): Promise<
       sourceEntityType: observation.sourceEntityType,
       sourceEntityId: observation.sourceEntityId,
     });
+    await notifyAlertAudience(
+      req,
+      resolved.id,
+      observation,
+      NOTIFICATION_TYPES.ALERT_RESOLVED,
+      "INFO",
+      `${observation.title} resolved`,
+      `The latest valid observation is back inside the configured operating limit for ${observation.productionDate}.`,
+      "RESOLVED",
+    );
     return;
   }
 
@@ -188,6 +233,16 @@ async function syncObservation(req: Request, observation: Observation): Promise<
       sourceEntityType: observation.sourceEntityType,
       sourceEntityId: observation.sourceEntityId,
     });
+    await notifyAlertAudience(
+      req,
+      created.id,
+      observation,
+      notificationTypeFor(observation, severity),
+      severity,
+      severity === "CRITICAL" ? `Critical: ${observation.title}` : observation.title,
+      `${observation.detail} Observed value: ${observation.actual ?? "unavailable"} for ${observation.productionDate}.`,
+      `OPEN:${severity}`,
+    );
     return;
   }
 
@@ -219,6 +274,16 @@ async function syncObservation(req: Request, observation: Observation): Promise<
       sourceEntityType: observation.sourceEntityType,
       sourceEntityId: observation.sourceEntityId,
     });
+    await notifyAlertAudience(
+      req,
+      updated.id,
+      observation,
+      NOTIFICATION_TYPES.ALERT_ESCALATED,
+      severity,
+      `Escalated: ${observation.title}`,
+      `This alert escalated from ${existing.severity} to ${severity}. Observed value: ${observation.actual ?? "unavailable"}.`,
+      `ESCALATED:${severity}`,
+    );
     return;
   }
 

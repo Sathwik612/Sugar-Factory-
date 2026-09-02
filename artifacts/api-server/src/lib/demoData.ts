@@ -17,6 +17,10 @@ import {
   storeMovements,
   maintenanceWorkOrders,
   operationalAlerts,
+  approvalAssignments,
+  notificationPreferences,
+  notifications,
+  usersTable,
 } from "@workspace/db";
 
 const dates = [
@@ -384,6 +388,105 @@ async function seedOperationsSuite(factoryId: string) {
       { factoryId, productionDate: dates[dates.length - 1], kpiCode: "recovery", severity: "CRITICAL", title: "Recovery below target", detail: "Current recovery is below the configured critical threshold. Review quality and cane inputs.", isDemo: true },
       { factoryId, productionDate: dates[dates.length - 1], kpiCode: "downtime", severity: "WARNING", title: "Downtime review due", detail: "Downtime is above the daily target and needs a Pareto review.", isDemo: true },
     ]);
+  }
+
+  const [assignment] = await db.select({ id: approvalAssignments.id }).from(approvalAssignments).where(eq(approvalAssignments.factoryId, factoryId)).limit(1);
+  if (!assignment) {
+    await db.insert(approvalAssignments).values(
+      ["PRODUCTION", "QUALITY", "ENGINEERING", "STORES"].map((department) => ({
+        factoryId,
+        department,
+        reviewerRole: "MANAGER",
+      })),
+    );
+  }
+
+  const users = await db.select().from(usersTable);
+  const existingPreferences = await db.select({ userId: notificationPreferences.userId }).from(notificationPreferences).where(eq(notificationPreferences.factoryId, factoryId));
+  const preferenceUsers = new Set(existingPreferences.map((preference) => preference.userId));
+  const usersMissingPreferences = users.filter((user) => !preferenceUsers.has(user.id));
+  if (usersMissingPreferences.length) {
+    await db.insert(notificationPreferences).values(
+      usersMissingPreferences.map((user) => ({
+        userId: user.id,
+        factoryId,
+        criticalAlertsEnabled: user.role === "MANAGER" || user.role === "ADMIN",
+      })),
+    );
+  }
+
+  const [demoNotification] = await db.select({ id: notifications.id }).from(notifications).where(and(eq(notifications.factoryId, factoryId), eq(notifications.isDemo, true))).limit(1);
+  if (!demoNotification) {
+    const manager = users.find((user) => user.username === "manager");
+    const production = users.find((user) => user.username === "production");
+    if (manager) {
+      await db.insert(notifications).values([
+        {
+          userId: manager.id,
+          factoryId,
+          type: "APPROVAL_REQUIRED",
+          severity: "WARNING",
+          title: "Production data requires approval",
+          message: "Synthetic production data for 30 Aug 2026 is ready for management review.",
+          entityType: "daily_operations",
+          actionUrl: "/approval-queue",
+          dedupeKey: "demo:manager:approval-required",
+          isDemo: true,
+        },
+        {
+          userId: manager.id,
+          factoryId,
+          type: "CRITICAL_ALERT",
+          severity: "CRITICAL",
+          title: "Critical recovery alert",
+          message: "Synthetic recovery performance is below the configured critical threshold.",
+          entityType: "operational_alert",
+          actionUrl: "/operations-suite?date=2026-08-30",
+          dedupeKey: "demo:manager:critical-alert",
+          isDemo: true,
+        },
+        {
+          userId: manager.id,
+          factoryId,
+          type: "WARNING_ALERT",
+          severity: "WARNING",
+          title: "Downtime review required",
+          message: "Synthetic downtime is above the daily operating target.",
+          entityType: "operational_alert",
+          actionUrl: "/operations-suite?date=2026-08-30",
+          dedupeKey: "demo:manager:warning-alert",
+          isDemo: true,
+        },
+      ]);
+    }
+    if (production) {
+      await db.insert(notifications).values([
+        {
+          userId: production.id,
+          factoryId,
+          type: "DATA_APPROVED",
+          severity: "INFO",
+          title: "Production data approved",
+          message: "Your synthetic production submission was approved for the management view.",
+          entityType: "daily_operations",
+          actionUrl: "/daily-operations?date=2026-08-30&shift=GENERAL",
+          dedupeKey: "demo:production:approved",
+          isDemo: true,
+        },
+        {
+          userId: production.id,
+          factoryId,
+          type: "DATA_RETURNED",
+          severity: "WARNING",
+          title: "Production submission returned",
+          message: "A synthetic submission was returned to demonstrate the correction workflow.",
+          entityType: "daily_operations",
+          actionUrl: "/daily-operations?date=2026-08-30&shift=GENERAL",
+          dedupeKey: "demo:production:returned",
+          isDemo: true,
+        },
+      ]);
+    }
   }
 }
 

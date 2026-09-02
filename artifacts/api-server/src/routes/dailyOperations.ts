@@ -7,6 +7,7 @@ import { requireAuth } from "../middlewares/authMiddleware";
 import { canEditSection } from "../lib/authz";
 import { recordAudit } from "../lib/audit";
 import { evaluateDailyOperationAlerts } from "../lib/operationalAlerts";
+import { assignApprovalTask } from "../lib/approvals";
 
 const router: IRouter = Router();
 
@@ -233,12 +234,12 @@ router.post("/daily-operations", requireAuth, async (req, res, next) => {
       )
       .limit(1);
 
-    if (
-      existingRecord?.status === "APPROVED" &&
-      actor.role !== "MANAGER" &&
-      actor.role !== "ADMIN"
-    ) {
-      res.status(409).json({ error: "Approved records cannot be edited by operators." });
+    if (existingRecord?.status === "APPROVED") {
+      res.status(409).json({ error: "Approved records are locked. Use a controlled correction workflow instead of editing directly." });
+      return;
+    }
+    if (existingRecord && ["SUBMITTED", "UNDER_REVIEW"].includes(existingRecord.status)) {
+      res.status(409).json({ error: "Submitted records are locked while approval is pending. A reviewer must return the record before it can be corrected." });
       return;
     }
 
@@ -275,6 +276,7 @@ router.post("/daily-operations", requireAuth, async (req, res, next) => {
     const status = body.status === "SUBMITTED" ? "SUBMITTED" : "DRAFT";
     const submittedBy =
       status === "SUBMITTED" ? actor.id : existingRecord?.submittedBy ?? null;
+    const priority = body.priority === "HIGH" ? "HIGH" : existingRecord?.priority ?? "NORMAL";
     const calculated = calculatePayload(scopedBody, validation);
     const now = new Date();
     const [record] = await db
@@ -288,6 +290,7 @@ router.post("/daily-operations", requireAuth, async (req, res, next) => {
         source: "MANUAL_ENTRY",
         submittedBy,
         submittedAt: status === "SUBMITTED" ? now : null,
+        priority,
         production: calculated.production,
         quality: calculated.quality,
         efficiency: calculated.efficiency,
@@ -309,6 +312,7 @@ router.post("/daily-operations", requireAuth, async (req, res, next) => {
           source: "MANUAL_ENTRY",
           submittedBy,
           submittedAt: status === "SUBMITTED" ? now : null,
+          priority,
           production: calculated.production,
           quality: calculated.quality,
           efficiency: calculated.efficiency,
@@ -329,7 +333,10 @@ router.post("/daily-operations", requireAuth, async (req, res, next) => {
       { productionDate: record.productionDate, shift: record.shift, status },
     );
 
+    let reviewerRole = record.reviewerRole;
     if (status === "SUBMITTED") {
+      const approvalTask = await assignApprovalTask(req, record, actor.department);
+      reviewerRole = approvalTask.reviewerRole;
       let [day] = await db
         .select()
         .from(productionDays)
@@ -434,7 +441,7 @@ router.post("/daily-operations", requireAuth, async (req, res, next) => {
       if (anomalyRows.length) await db.insert(anomalies).values(anomalyRows);
     }
 
-    res.status(200).json(record);
+    res.status(200).json({ ...record, reviewerRole });
   } catch (error) {
     next(error);
   }

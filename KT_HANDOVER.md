@@ -286,7 +286,7 @@ CRITICAL
 - `/files/:fileId`
   - Source file detail and validation history
 - `/approval-queue`
-  - Manager/admin review queue
+  - Manager/admin approval center with queue metrics, filters, priority, and mandatory return reasons
 - `/audit-log`
   - Audit events
 - `/users`
@@ -308,6 +308,19 @@ All routes are mounted under `/api`.
 - `POST /operations-suite/targets`
 - `PATCH /operations-suite/settings`
 - `PATCH /operations-suite/alerts/:id/acknowledge`
+
+### Approval and notification API routes
+
+- `GET /approval-queue`
+- `GET /approval-summary`
+- `POST /approval-queue/:recordId`
+- `GET /notifications`
+- `PATCH /notifications/:id/read`
+- `POST /notifications/read-all`
+- `GET /notification-preferences`
+- `PATCH /notification-preferences`
+
+Approval assignments, approval tasks, notification preferences, and notification records are persisted in PostgreSQL. Notification delivery is currently in-app; external email/SMS/WhatsApp providers are intentionally disabled.
 
 The Operations Suite page currently calls these endpoints with `fetch`. If these APIs are added to the formal OpenAPI contract later, regenerate the React client and Zod schemas afterward.
 
@@ -378,9 +391,14 @@ The following checks have passed:
 - Admins can manage users and factory configuration.
 - Department-scoped field preservation works.
 - Draft → submitted → under review → approved workflow works.
-- Operators cannot edit approved records.
+- Returned records require a reason and notify the submitter.
+- Resubmission creates a fresh reviewer notification without duplicating the prior event.
+- Operators cannot edit pending or approved records.
+- Submitters cannot approve their own records.
+- Persistent unread/read notification state and preference updates work.
+- Critical alert raise and later resolution both create management notifications.
 - Full workspace typecheck passes.
-- Dashboard production build passes.
+- Repository-wide production build passes.
 - API and dashboard workflows start cleanly.
 - Operations Suite aggregation returned seeded targets, handovers, samples, stores, maintenance, alerts, KPIs, and Pareto data.
 - Production operator access to the suite works.
@@ -402,9 +420,9 @@ They do not yet create a native styled `.xlsx` or server-generated PDF file. Tha
 
 Source registration and metadata processing exist, but the current source intake does not yet persist immutable workbook bytes or run complete workbook parsing. Real factory onboarding should add object storage, file hashing, parser versioning, validation results, and import reconciliation.
 
-### Alert regression tests
+### Additional regression automation
 
-The alert evaluator supports the lifecycle, but a dedicated browser/API regression suite should cover:
+Targeted authenticated API checks cover submission, assignment, return reasons, resubmission, approval, locking, notification persistence, and critical alert resolution. A dedicated automated CI suite should additionally cover:
 
 - Repeated breach deduplication
 - Warning-to-critical escalation
@@ -425,6 +443,7 @@ Before using real factory data:
 5. Add real source-file storage and ingestion.
 6. Test approval and audit retention expectations.
 7. Validate production deployment and database schema separately from development.
+8. Configure a supported external notification provider only if management approves email/SMS/WhatsApp delivery and its cost.
 
 ## 15. Practical troubleshooting
 
