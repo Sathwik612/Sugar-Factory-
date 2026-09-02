@@ -1,0 +1,480 @@
+NEW FEATURE: AUTHENTICATION + ROLE BASED ACCESS CONTROL (RBAC)
+
+We are now moving from a generic demo to a realistic factory operations application.
+
+The current application must support secure login and role-based permissions.
+
+IMPORTANT:
+
+Do NOT remove existing functionality.
+
+Extend the existing application.
+
+Reuse the current frontend, backend, database, routing and styling.
+
+==================================================
+OBJECTIVE
+==================================================
+
+Create a proper login system.
+
+Different departments should only be able to access and edit their own operational data.
+
+Managers should be able to review everything.
+
+Admins should manage users and system settings.
+
+==================================================
+LOGIN PAGE
+==================================================
+
+Create a professional login page.
+
+Fields:
+
+- Username / Email
+- Password
+
+Buttons:
+
+- Login
+
+Display:
+
+Sugar Factory Intelligence Platform
+
+Factory Operations & Intelligence System
+
+Use the existing design system.
+
+Do not use placeholder-style login screens.
+
+Make it look production-ready.
+
+==================================================
+AUTHENTICATION
+==================================================
+
+Implement authentication using the existing stack.
+
+Store passwords securely.
+
+Hash passwords.
+
+Do NOT store plain text passwords.
+
+Create proper user sessions.
+
+Protect routes.
+
+Unauthenticated users should be redirected to Login.
+
+==================================================
+ROLE BASED ACCESS CONTROL
+==================================================
+
+Implement the following roles:
+
+1. PRODUCTION_OPERATOR
+2. QUALITY_OPERATOR
+3. ENGINEERING_OPERATOR
+4. STORES_OPERATOR
+5. MANAGER
+6. ADMIN
+
+==================================================
+ROLE PERMISSIONS
+==================================================
+
+PRODUCTION_OPERATOR
+
+Can:
+
+- View Production section
+- Create/Edit Production data
+- View own submissions
+
+Cannot:
+
+- Edit Quality
+- Edit Engineering
+- Edit Stores
+- Manage users
+
+==================================================
+
+QUALITY_OPERATOR
+
+Can:
+
+- View Quality section
+- Create/Edit Quality data
+- View own submissions
+
+Cannot:
+
+- Edit Production
+- Edit Engineering
+- Edit Stores
+- Manage users
+
+==================================================
+
+ENGINEERING_OPERATOR
+
+Can:
+
+- Update:
+    - Downtime
+    - Time Account
+    - Energy
+    - Stoppages
+
+Cannot:
+
+- Edit Production
+- Edit Quality
+- Edit Stores
+
+==================================================
+
+STORES_OPERATOR
+
+Can:
+
+- Update Materials
+- Update Consumption
+
+Cannot:
+
+- Edit Production
+- Edit Quality
+- Edit Engineering
+
+==================================================
+
+MANAGER
+
+Can:
+
+- View EVERYTHING
+- Review submissions
+- Approve daily records
+- Edit all operational sections
+
+Cannot:
+
+- Create system users
+- Change system configuration
+
+==================================================
+
+ADMIN
+
+Full access.
+
+Can:
+
+- Manage users
+- Reset passwords
+- Configure factory settings
+- View audit logs
+- Manage permissions
+- Access all modules
+
+==================================================
+DATA ENTRY WORKFLOW
+==================================================
+
+A daily record should be assembled from multiple departments.
+
+Example:
+
+Production Operator
+→ enters production
+
+Quality Operator
+→ enters lab values
+
+Engineering Operator
+→ enters downtime
+
+Stores Operator
+→ enters material usage
+
+Manager
+→ reviews
+
+Manager
+→ approves
+
+Only after approval:
+
+Status = APPROVED
+
+==================================================
+RECORD STATUS
+==================================================
+
+Support:
+
+DRAFT
+SUBMITTED
+UNDER_REVIEW
+APPROVED
+
+Display status clearly.
+
+==================================================
+AUDIT TRAIL
+==================================================
+
+Every update should record:
+
+User
+Role
+Timestamp
+Department
+Action
+
+Example:
+
+Production User
+Updated Cane Crushed
+02-Sep-2026 13:42
+
+Quality User
+Updated Purity
+02-Sep-2026 13:48
+
+Manager
+Approved Daily Record
+02-Sep-2026 15:05
+
+==================================================
+DEMO USERS
+==================================================
+
+Create DEMO USERS.
+
+Clearly label them:
+
+DEMO ACCOUNTS
+
+Do NOT use real passwords.
+
+Use simple demo credentials.
+
+Example:
+
+Production Operator
+Username:
+production
+
+Password:
+demo123
+
+--------------------------------
+
+Quality Operator
+Username:
+quality
+
+Password:
+demo123
+
+--------------------------------
+
+Engineering Operator
+Username:
+engineering
+
+Password:
+demo123
+
+--------------------------------
+
+Stores Operator
+Username:
+stores
+
+Password:
+demo123
+
+--------------------------------
+
+Manager
+Username:
+manager
+
+Password:
+demo123
+
+--------------------------------
+
+Admin
+Username:
+admin
+
+Password:
+demo123
+
+==================================================
+DEMO EXPERIENCE
+==================================================
+
+When logging in as:
+
+production
+
+Show:
+
+Production Dashboard
+
+Production Data Entry
+
+Hide unrelated modules.
+
+--------------------------------
+
+When logging in as:
+
+quality
+
+Show:
+
+Quality Dashboard
+
+Quality Entry
+
+Hide unrelated modules.
+
+--------------------------------
+
+When logging in as:
+
+manager
+
+Show:
+
+Executive Dashboard
+
+KPIs
+
+Exceptions
+
+Reports
+
+Approval Queue
+
+--------------------------------
+
+When logging in as:
+
+admin
+
+Show:
+
+Everything
+
+==================================================
+UI REQUIREMENTS
+==================================================
+
+Do not simply disable buttons.
+
+Hide modules that the role should not access.
+
+Also enforce permissions in backend APIs.
+
+A user should not gain access by changing URLs.
+
+==================================================
+MANAGER APPROVAL
+==================================================
+
+Add an Approval Queue.
+
+Manager sees:
+
+Today's submissions
+
+Status
+
+Department
+
+Submitted By
+
+Submitted Time
+
+Approve / Reject
+
+Comments
+
+==================================================
+NOTIFICATIONS
+==================================================
+
+For demo purposes:
+
+Show in-app notifications only.
+
+Example:
+
+Production data submitted.
+
+Waiting for Manager approval.
+
+Manager approved daily record.
+
+==================================================
+SECURITY
+==================================================
+
+Implement proper backend permission checks.
+
+Do not rely only on frontend restrictions.
+
+Protect all sensitive endpoints.
+
+==================================================
+TESTING
+==================================================
+
+Test all demo accounts.
+
+Verify:
+
+1. Login works.
+2. Password hashing works.
+3. Session works.
+4. Route protection works.
+5. API protection works.
+6. Role permissions work.
+7. Approval workflow works.
+8. Audit trail works.
+
+==================================================
+IMPORTANT
+==================================================
+
+This is still a DEMO.
+
+Keep it lightweight.
+
+Do not introduce unnecessary complexity.
+
+Use the existing architecture.
+
+Reuse existing components.
+
+Add authentication and RBAC cleanly.
+
+At the end provide:
+
+1. Demo usernames.
+2. Demo passwords.
+3. Role matrix.
+4. Protected routes.
+5. Database changes.
+6. Testing results.
