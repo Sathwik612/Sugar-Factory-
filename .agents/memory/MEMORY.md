@@ -1,1 +1,0 @@
-- [OpenAPI/Zod compatibility](openapi-codegen-zod.md) — generated integer and binary schemas can break the workspace's Zod 3 typecheck; validate codegen plus library types together.
