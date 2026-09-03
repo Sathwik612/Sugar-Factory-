@@ -2,6 +2,7 @@
   "name": "workspace",
   "version": "0.0.0",
   "license": "MIT",
+  "packageManager": "pnpm@10.26.1",
   "scripts": {
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
@@ -10,6 +11,7 @@
     "test:api": "pnpm --filter @workspace/scripts exec tsx ../tests/api/offline-approvals.api.test.ts",
     "test:kpi": "pnpm --filter @workspace/scripts exec tsx ../tests/unit/kpi.test.ts",
     "test:workbook": "pnpm --filter @workspace/scripts exec tsx ../tests/unit/workbook-import.test.ts",
+    "test:storage": "pnpm --filter @workspace/scripts exec tsx ../tests/unit/source-storage.test.ts",
     "test:browser": "playwright test",
     "test:offline-approvals": "bash tests/run-offline-approvals.sh",
     "dev:local": "bash ./scripts/dev-local.sh",

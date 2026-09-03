@@ -26,6 +26,12 @@ import { readSourceFile } from "../lib/sourceFileStorage";
 const router: IRouter = Router();
 const maxUploadBytes = Number(process.env.SOURCE_FILE_MAX_BYTES ?? 10 * 1024 * 1024);
 
+function hasWorkbookSignature(filename: string, bytes: Buffer) {
+  const extension = filename.toLowerCase().slice(filename.lastIndexOf("."));
+  if (extension === ".xlsx") return bytes[0] === 0x50 && bytes[1] === 0x4b;
+  return Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]).equals(bytes.subarray(0, 8));
+}
+
 router.get("/source-files", requireRoles("MANAGER", "ADMIN"), async (req, res, next) => {
   try {
     const params = ListSourceFilesQueryParams.parse(req.query);
@@ -147,7 +153,7 @@ router.post(
     const filename = typeof req.body?.filename === "string" ? req.body.filename.trim() : "";
     const sizeBytes = Number(req.body?.sizeBytes);
     const contentType = typeof req.body?.contentType === "string" ? req.body.contentType : null;
-    if (!objectPath || !filename || !Number.isFinite(sizeBytes)) {
+    if (!objectPath || objectPath.length > 512 || !filename || filename.length > 255 || /[\u0000-\u001f\u007f]/.test(filename) || !Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > maxUploadBytes) {
       res.status(400).json({ error: "Register the uploaded workbook object with objectPath, filename, and sizeBytes." });
       return;
     }
@@ -161,10 +167,14 @@ router.post(
       res.status(503).json({ error: "No factory has been configured yet." });
       return;
     }
-    const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/^\.+/, "upload");
     const bytes = await readSourceFile(objectPath);
     if (bytes.length > maxUploadBytes || Math.abs(bytes.length - sizeBytes) > 0) {
       res.status(400).json({ error: "The uploaded object size does not match the registered metadata or exceeds the limit." });
+      return;
+    }
+    if (!hasWorkbookSignature(filename, bytes)) {
+      res.status(400).json({ error: "The uploaded object is not a valid .xlsx or .xls workbook." });
       return;
     }
     const sha256 = createHash("sha256").update(bytes).digest("hex");

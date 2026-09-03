@@ -1,6 +1,6 @@
-import { Router, type IRouter } from "express";
+import express, { Router, type IRouter } from "express";
 import { requireRoles } from "../lib/authz";
-import { requestSourceUpload } from "../lib/sourceFileStorage";
+import { getStorageProvider, requestSourceUpload, storeSourceUpload } from "../lib/sourceFileStorage";
 
 const router: IRouter = Router();
 
@@ -19,11 +19,33 @@ router.post("/storage/uploads/request-url", requireRoles("MANAGER", "ADMIN"), as
       res.status(400).json({ error: "Only .xlsx and .xls workbooks are supported." });
       return;
     }
-    const upload = await requestSourceUpload();
+    const upload = await requestSourceUpload(contentType);
     res.json({ ...upload, metadata: { name, size, contentType } });
   } catch (error) {
     next(error);
   }
 });
+
+router.put(
+  "/storage/uploads/:uploadId",
+  requireRoles("MANAGER", "ADMIN"),
+  express.raw({ type: "*/*", limit: `${Number(process.env.SOURCE_FILE_MAX_BYTES ?? 10 * 1024 * 1024)}b` }),
+  async (req, res, next) => {
+    try {
+      if (getStorageProvider() !== "local") {
+        res.status(404).json({ error: "Direct local upload endpoint is disabled for this storage provider." });
+        return;
+      }
+      if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+        res.status(400).json({ error: "A non-empty workbook body is required." });
+        return;
+      }
+      await storeSourceUpload(String(req.params.uploadId), req.body);
+      res.status(204).end();
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 export default router;

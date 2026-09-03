@@ -75,6 +75,12 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
+  # Keep transitive parser/glob dependencies on releases with the current
+  # denial-of-service fixes.
+  "brace-expansion": "5.0.9"
+  "fast-uri": "3.1.6"
+  "js-yaml": "4.3.1"
+  "uuid": "11.1.1"
   # replit uses linux-x64 only, we can exclude all other platforms
   "esbuild>@esbuild/darwin-arm64": "-"
   "esbuild>@esbuild/darwin-x64": "-"

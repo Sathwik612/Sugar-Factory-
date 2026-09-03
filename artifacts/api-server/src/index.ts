@@ -4,6 +4,7 @@ import { seedDemoData } from "./lib/demoData";
 import { seedDemoUsers } from "./routes/auth";
 import { closeDatabase } from "@workspace/db";
 import { startPushDeliveryWorker } from "./lib/notifications";
+import { validateStorageConfiguration } from "./lib/sourceFileStorage";
 
 const rawPort = process.env["PORT"] ?? "8080";
 
@@ -14,6 +15,8 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 async function start() {
+  validateProductionConfiguration();
+  validateStorageConfiguration();
   const shouldSeedDemo = process.env.SEED_DEMO_DATA === "true" || process.env.NODE_ENV !== "production";
   if (shouldSeedDemo) {
     await seedDemoUsers();
@@ -58,6 +61,19 @@ async function start() {
     logger.fatal({ err: error }, "Unhandled rejection");
     void shutdown("unhandledRejection");
   });
+}
+
+function validateProductionConfiguration() {
+  if (process.env.NODE_ENV !== "production") return;
+  const missing: string[] = [];
+  if (!process.env.SESSION_SECRET?.trim()) missing.push("SESSION_SECRET");
+  if (!process.env.CORS_ORIGIN?.trim()) missing.push("CORS_ORIGIN");
+  if (process.env.COOKIE_SECURE !== "true") missing.push("COOKIE_SECURE=true");
+  if (!process.env.TRUST_PROXY?.trim()) missing.push("TRUST_PROXY");
+  if (process.env.SEED_DEMO_DATA === "true") missing.push("SEED_DEMO_DATA=false");
+  if (missing.length) {
+    throw new Error(`Production configuration is invalid. Set: ${missing.join(", ")}.`);
+  }
 }
 
 start().catch((error) => {

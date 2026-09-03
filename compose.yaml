@@ -26,9 +26,21 @@ services:
       PGPASSWORD: ${PGPASSWORD:?Set PGPASSWORD}
       PGDATABASE: ${PGDATABASE:-sugar_factory}
       SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET}
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      CORS_ORIGIN: ${CORS_ORIGIN:?Set CORS_ORIGIN}
+      COOKIE_SECURE: ${COOKIE_SECURE:?Set COOKIE_SECURE=true behind HTTPS}
       TRUST_PROXY: ${TRUST_PROXY:-1}
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
+      SOURCE_FILE_MAX_BYTES: ${SOURCE_FILE_MAX_BYTES:-10485760}
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:?Set STORAGE_PROVIDER to s3 or local}
+      STORAGE_LOCAL_PATH: ${STORAGE_LOCAL_PATH:-/var/lib/sugar-factory/uploads}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-false}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+    volumes:
+      - source_uploads:/var/lib/sugar-factory/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -39,7 +51,7 @@ services:
       context: .
       dockerfile: docker/web.Dockerfile
     ports:
-      - "${WEB_PORT:-8080}:80"
+      - "${WEB_BIND_ADDRESS:-0.0.0.0}:${WEB_PORT:-8080}:80"
     depends_on:
       api:
         condition: service_healthy
@@ -47,3 +59,4 @@ services:
 
 volumes:
   postgres_data:
+  source_uploads:

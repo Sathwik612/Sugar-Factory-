@@ -119,7 +119,8 @@ The system keeps operational values, calculated KPIs, alerts, approvals, source 
 - Bounded PostgreSQL connection pool
 - PWA manifest and service worker
 - Web-push subscription and delivery outbox
-- Docker and reverse-proxy examples
+- Generic VPS Docker and reverse-proxy deployment
+- S3-compatible or persistent local source-workbook storage
 - Backup and restore scripts
 
 ---
@@ -152,6 +153,11 @@ The application is a TypeScript modular monolith:
                          │ factory + source data   │
                          │ operations + approvals  │
                          │ notifications + audit   │
+                         └────────────┬────────────┘
+                                      │
+                         ┌────────────▼────────────┐
+                         │ Private source storage  │
+                         │ S3-compatible or local  │
                          └─────────────────────────┘
 ```
 
@@ -167,6 +173,27 @@ The frontend is not a security boundary. Hiding a navigation item only improves 
 6. Database writes and audit events are committed.
 7. Notifications and alert evaluation run using the canonical result.
 8. The response returns a safe result or a request ID for troubleshooting.
+
+### Generic VPS launch
+
+The production deployment is a small Docker Compose stack behind host-level
+HTTPS. PostgreSQL and the API are private; the web container serves the
+dashboard and proxies `/api`. Source workbooks use a private S3-compatible
+bucket or an explicitly persistent local directory. Start with:
+
+```bash
+cp .env.production.example .env
+# fill the required values, including CORS_ORIGIN and storage credentials
+docker compose build
+docker compose up -d db
+docker compose run --rm api pnpm --filter @workspace/db run push
+docker compose up -d
+curl -fsS http://127.0.0.1:8080/api/readyz
+```
+
+Read [VPS_DEPLOYMENT.md](./VPS_DEPLOYMENT.md) for HTTPS, firewall, storage,
+backup, restore, and update procedures, then complete
+[docs/VPS_READINESS_CHECKLIST.md](./docs/VPS_READINESS_CHECKLIST.md).
 
 ---
 
@@ -442,6 +469,26 @@ When `DATABASE_URL` is present, it takes precedence over the individual PostgreS
 | `FORM_BODY_LIMIT` | URL-encoded request limit | `256kb` |
 | `READINESS_TIMEOUT_MS` | Database readiness timeout | `3000` |
 | `SHUTDOWN_TIMEOUT_MS` | Graceful shutdown deadline | `10000` |
+| `SOURCE_FILE_MAX_BYTES` | Maximum workbook upload size | `10485760` |
+
+### Source workbook storage
+
+| Variable | Purpose | Local/VPS example |
+|---|---|---|
+| `STORAGE_PROVIDER` | `replit` for isolated development, or `s3`/`local` on a VPS | `s3` |
+| `STORAGE_LOCAL_PATH` | Persistent directory for the local provider | `/var/lib/sugar-factory/uploads` |
+| `S3_BUCKET` | Private S3-compatible bucket | `sugar-factory-source-files` |
+| `S3_REGION` | S3 region | `ap-south-1` |
+| `S3_ENDPOINT` | Optional endpoint for MinIO/other S3 services | empty for AWS |
+| `S3_FORCE_PATH_STYLE` | Use path-style S3 requests when required | `false` |
+| `S3_ACCESS_KEY_ID` | S3 access key | secret-managed value |
+| `S3_SECRET_ACCESS_KEY` | S3 secret | secret-managed value |
+
+Production startup requires an explicit `s3` or `local` provider. S3 uploads
+use short-lived presigned URLs; local uploads use an authenticated, rate-limited
+API endpoint and write to a persistent directory with generated object keys.
+Uploaded objects are size-checked, signature-checked, hashed, and parsed before
+they can enter the canonical model.
 
 ### Cookies and CORS
 
