@@ -4,6 +4,8 @@
 
 Use secret storage for database credentials and `SESSION_SECRET`. Set `NODE_ENV=production`, an HTTPS `CORS_ORIGIN`, `COOKIE_SECURE=true`, and `TRUST_PROXY=1` behind one trusted reverse proxy. Keep `SEED_DEMO_DATA=false` unless deliberately creating a demo environment.
 
+For a normal local checkout, use `.env` rather than Replit secrets. `pnpm run dev:local` starts the API on port 8080 and the dashboard on port 5173. `pnpm run db:push:local` loads the local `.env` before applying the Drizzle schema.
+
 Run `pnpm --filter @workspace/db run push` as a controlled release step before starting a new application version. Verify `/api/healthz` for liveness and `/api/readyz` for database readiness.
 
 ## Docker Compose

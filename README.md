@@ -92,6 +92,25 @@ The workspace intentionally rejects npm/yarn installs to keep one lockfile.
    pnpm install
    ```
 
+3. Configure a local environment:
+
+   ```bash
+   cp .env.example .env
+   # Edit .env with your local PostgreSQL settings and a long SESSION_SECRET.
+   ```
+
+4. Create the database, apply the schema, and start both services:
+
+   ```bash
+   createdb sugar_factory
+   pnpm run db:push:local
+   pnpm run dev:local
+   ```
+
+   Open `http://localhost:5173`. The dashboard proxies `/api` to the API at `http://localhost:8080`; no Replit account, domain, or injected environment variables are required.
+
+For a production-like local run, first run `pnpm run build:local`, then `pnpm run start:local`. The Vite preview serves the dashboard and the API serves readiness at `/api/readyz`. Docker Compose is also available for hosts with Docker; see [`DEPLOYMENT.md`](./DEPLOYMENT.md).
+
 3. Copy the environment example:
 
    ```bash

@@ -9,7 +9,11 @@
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
     "test:api": "pnpm --filter @workspace/scripts exec tsx ../tests/api/offline-approvals.api.test.ts",
     "test:browser": "playwright test",
-    "test:offline-approvals": "bash tests/run-offline-approvals.sh"
+    "test:offline-approvals": "bash tests/run-offline-approvals.sh",
+    "dev:local": "bash ./scripts/dev-local.sh",
+    "build:local": "pnpm run typecheck && pnpm -r --filter \"./artifacts/**\" --if-present run build",
+    "db:push:local": "bash -c 'set -a; [ ! -f .env ] || . ./.env; set +a; pnpm --filter @workspace/db run push'",
+    "start:local": "bash ./scripts/serve-local.sh"
   },
   "private": true,
   "dependencies": {

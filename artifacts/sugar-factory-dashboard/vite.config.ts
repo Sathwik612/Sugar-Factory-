@@ -14,13 +14,17 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 const basePath = process.env.BASE_PATH ?? '/';
+const localApiOrigin =
+  process.env.API_ORIGIN ??
+  process.env.TEST_API_ORIGIN ??
+  (process.env.REPL_ID === undefined ? 'http://localhost:8080' : undefined);
 
 export default defineConfig({
   base: basePath,
   plugins: [
     react(),
     tailwindcss(),
-    runtimeErrorOverlay(),
+    ...(process.env.REPL_ID !== undefined ? [runtimeErrorOverlay()] : []),
     ...(process.env.NODE_ENV !== 'production' &&
     process.env.REPL_ID !== undefined
       ? [
@@ -57,10 +61,10 @@ export default defineConfig({
     strictPort: true,
     host: '0.0.0.0',
     allowedHosts: true,
-    proxy: process.env.TEST_API_ORIGIN
+    proxy: localApiOrigin
       ? {
           '/api': {
-            target: process.env.TEST_API_ORIGIN,
+            target: localApiOrigin,
             changeOrigin: true,
           },
         }
