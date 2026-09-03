@@ -73,7 +73,7 @@ The system keeps operational values, calculated KPIs, alerts, approvals, source 
 - Target-versus-actual planning
 - Data-quality scorecard
 - CSV export
-- Browser print/save-as-PDF export
+- Deterministic application-generated PDF report download
 
 ### Daily operational entry
 
@@ -688,6 +688,11 @@ The server remains authoritative for status transitions. A browser-side “submi
 ## KPI calculations
 
 Derived values are calculated on the server and should not be treated as client-owned values.
+
+The canonical definitions and named calculation functions are maintained in
+[`docs/KPI_DEFINITIONS.md`](./docs/KPI_DEFINITIONS.md). Independent expected-value
+and edge-case coverage is recorded in
+[`docs/CALCULATION_VALIDATION.md`](./docs/CALCULATION_VALIDATION.md).
 
 ### Recovery
 
@@ -1410,8 +1415,8 @@ Check:
 
 ### Current limitations
 
-- Source registration exists, but complete immutable workbook-byte storage and parser/reconciliation are not finished.
-- Export currently provides CSV and browser print/save-as-PDF, not native styled XLSX or fixed-layout server PDF packs.
+- Workbook ingestion currently supports a controlled Daily Operations table layout; factory-specific mapping templates and broader departmental workbook shapes still require pilot validation.
+- Export currently provides CSV and fixed-layout server-generated daily PDF; native styled XLSX export is not yet included.
 - Demo accounts are for demonstration only and must be replaced or disabled for production identity onboarding.
 - Web push is implemented as an opt-in/outbox/delivery-worker capability; provider/VAPID operations must be managed securely.
 - Email, SMS, and WhatsApp are disabled.
@@ -1433,11 +1438,30 @@ Check:
 10. Configure and approve alert thresholds.
 11. Establish backup, retention, and restore-rehearsal policy.
 12. Validate readiness, authentication, approval locking, and audit events.
-13. Add immutable source-file storage and workbook ingestion.
-14. Reconcile imported records with factory source documents.
-15. Train operators on offline drafts and conflict handling.
-16. Decide whether web-push delivery is approved for managers.
-17. Monitor rate-limit events, readiness failures, delivery failures, and unexpected errors.
+13. Test representative `.xlsx` and `.xls` source workbooks with the factory data owner.
+14. Reconcile imported records with factory source documents using [`docs/DATA_VALIDATION.md`](./docs/DATA_VALIDATION.md).
+15. Perform and record a 25–30-user concurrency test.
+16. Perform and record a backup restore rehearsal.
+17. Train operators on offline drafts and conflict handling.
+18. Decide whether web-push delivery is approved for managers.
+19. Monitor rate-limit events, readiness failures, delivery failures, and unexpected errors.
+
+### Phase 1 productionization status
+
+Completed in the current codebase:
+
+- Central KPI formulas, named functions, definitions, edge-case tests, and validation guidance
+- Protected App Storage upload flow with actual-byte SHA-256 hashing
+- Workbook sheet inspection, preview, mapping, validation, duplicate detection, canonical Daily Operations draft import, and cell-level lineage
+- Import conflict protection and concurrent import claim state
+- Application-generated daily management PDF download
+
+Still required before the real 25–30-user pilot:
+
+- Factory-specific workbook mapping/UAT and management sign-off
+- A repeatable concurrency run with recorded results
+- A completed restore rehearsal with recorded results
+- Security scan and full end-to-end regression run against the pilot configuration
 
 Detailed rollout guidance is in [`DEPLOYMENT.md`](./DEPLOYMENT.md).
 

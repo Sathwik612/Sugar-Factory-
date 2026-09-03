@@ -147,7 +147,7 @@ export const listSourceFilesQueryLimitMax = 100;
 
 
 export const ListSourceFilesQueryParams = zod.object({
-  "status": zod.enum(['RECEIVED', 'HASHED', 'PARSING', 'MAPPING', 'VALIDATING', 'PROCESSED', 'WARNING', 'FAILED', 'DUPLICATE']).nullish(),
+  "status": zod.enum(['RECEIVED', 'HASHED', 'PARSING', 'MAPPING', 'VALIDATING', 'IMPORTING', 'PROCESSED', 'WARNING', 'FAILED', 'DUPLICATE']).nullish(),
   "limit": zod.coerce.number().min(1).max(listSourceFilesQueryLimitMax).default(listSourceFilesQueryLimitDefault)
 })
 
@@ -156,7 +156,7 @@ export const ListSourceFilesResponseItem = zod.object({
   "filename": zod.string(),
   "reportType": zod.string(),
   "reportingDate": zod.coerce.date().nullable(),
-  "status": zod.enum(['RECEIVED', 'HASHED', 'PARSING', 'MAPPING', 'VALIDATING', 'PROCESSED', 'WARNING', 'FAILED', 'DUPLICATE']),
+  "status": zod.enum(['RECEIVED', 'HASHED', 'PARSING', 'MAPPING', 'VALIDATING', 'IMPORTING', 'PROCESSED', 'WARNING', 'FAILED', 'DUPLICATE']),
   "uploadedAt": zod.coerce.date(),
   "sizeBytes": zod.number(),
   "sha256": zod.string(),
@@ -178,7 +178,7 @@ export const GetSourceFileResponse = zod.object({
   "filename": zod.string(),
   "reportType": zod.string(),
   "reportingDate": zod.coerce.date().nullable(),
-  "status": zod.enum(['RECEIVED', 'HASHED', 'PARSING', 'MAPPING', 'VALIDATING', 'PROCESSED', 'WARNING', 'FAILED', 'DUPLICATE']),
+  "status": zod.enum(['RECEIVED', 'HASHED', 'PARSING', 'MAPPING', 'VALIDATING', 'IMPORTING', 'PROCESSED', 'WARNING', 'FAILED', 'DUPLICATE']),
   "uploadedAt": zod.coerce.date(),
   "sizeBytes": zod.number(),
   "sha256": zod.string(),
@@ -204,11 +204,13 @@ export const GetSourceFileResponse = zod.object({
  * @summary Upload an Excel source file
  */
 
+
 export const uploadSourceFileBodySizeBytesMin = 0;
 
 
 
 export const UploadSourceFileBody = zod.object({
+  "objectPath": zod.string().min(1),
   "filename": zod.string().min(1),
   "sizeBytes": zod.number().min(uploadSourceFileBodySizeBytesMin),
   "contentType": zod.string().nullish()
@@ -219,13 +221,96 @@ export const UploadSourceFileResponse = zod.object({
   "filename": zod.string(),
   "reportType": zod.string(),
   "reportingDate": zod.coerce.date().nullable(),
-  "status": zod.enum(['RECEIVED', 'HASHED', 'PARSING', 'MAPPING', 'VALIDATING', 'PROCESSED', 'WARNING', 'FAILED', 'DUPLICATE']),
+  "status": zod.enum(['RECEIVED', 'HASHED', 'PARSING', 'MAPPING', 'VALIDATING', 'IMPORTING', 'PROCESSED', 'WARNING', 'FAILED', 'DUPLICATE']),
   "uploadedAt": zod.coerce.date(),
   "sizeBytes": zod.number(),
   "sha256": zod.string(),
   "synthetic": zod.boolean(),
   "issueCount": zod.number().optional()
 })
+
+
+/**
+ * @summary Inspect a retained workbook before import
+ */
+export const PreviewSourceFileParams = zod.object({
+  "fileId": zod.coerce.string()
+})
+
+export const PreviewSourceFileResponse = zod.object({
+  "id": zod.string(),
+  "filename": zod.string(),
+  "status": zod.string(),
+  "parserVersion": zod.string().nullish(),
+  "mappingVersion": zod.string().nullish(),
+  "sheets": zod.array(zod.object({
+  "name": zod.string(),
+  "headers": zod.array(zod.string()),
+  "rowCount": zod.number(),
+  "sampleRows": zod.array(zod.record(zod.string(), zod.string())),
+  "candidate": zod.boolean()
+})),
+  "mapping": zod.record(zod.string(), zod.string()),
+  "previewRows": zod.array(zod.record(zod.string(), zod.string())),
+  "issues": zod.array(zod.object({
+  "severity": zod.enum(['INFO', 'WARNING', 'ERROR']),
+  "code": zod.string(),
+  "message": zod.string(),
+  "location": zod.string().nullish()
+})),
+  "validRowCount": zod.number(),
+  "errorCount": zod.number(),
+  "warningCount": zod.number()
+})
+
+
+/**
+ * @summary Import a validated workbook into canonical Daily Operations drafts
+ */
+export const ImportSourceFileParams = zod.object({
+  "fileId": zod.coerce.string()
+})
+
+export const ImportSourceFileResponse = zod.object({
+  "sourceFileId": zod.string(),
+  "status": zod.string(),
+  "importedCount": zod.number(),
+  "alreadyImported": zod.boolean()
+})
+
+
+/**
+ * @summary Request a protected App Storage upload URL
+ */
+
+
+
+
+export const RequestSourceUploadUrlBody = zod.object({
+  "name": zod.string().min(1),
+  "size": zod.number().min(1),
+  "contentType": zod.string()
+})
+
+export const RequestSourceUploadUrlResponse = zod.object({
+  "uploadURL": zod.string(),
+  "objectPath": zod.string(),
+  "metadata": zod.object({
+  "name": zod.string(),
+  "size": zod.number(),
+  "contentType": zod.string()
+})
+})
+
+
+/**
+ * @summary Download the deterministic application-generated daily report PDF
+ */
+export const DownloadDailyReportPdfParams = zod.object({
+  "productionDate": zod.date()
+})
+
+export const DownloadDailyReportPdfResponse = zod.unknown()
 
 
 /**

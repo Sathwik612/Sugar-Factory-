@@ -306,6 +306,7 @@ export const SourceFileStatus = {
   PARSING: 'PARSING',
   MAPPING: 'MAPPING',
   VALIDATING: 'VALIDATING',
+  IMPORTING: 'IMPORTING',
   PROCESSED: 'PROCESSED',
   WARNING: 'WARNING',
   FAILED: 'FAILED',
@@ -358,11 +359,71 @@ export type SourceFileDetail = SourceFile & {
 
 export interface SourceFileUpload {
   /** @minLength 1 */
+  objectPath: string;
+  /** @minLength 1 */
   filename: string;
   /** @minimum 0 */
   sizeBytes: number;
   /** @nullable */
   contentType?: string | null;
+}
+
+export interface StorageUploadRequest {
+  /** @minLength 1 */
+  name: string;
+  /** @minimum 1 */
+  size: number;
+  contentType: string;
+}
+
+export type StorageUploadResponseMetadata = {
+  name: string;
+  size: number;
+  contentType: string;
+};
+
+export interface StorageUploadResponse {
+  uploadURL: string;
+  objectPath: string;
+  metadata: StorageUploadResponseMetadata;
+}
+
+export type SourceFilePreviewSheetsItemSampleRowsItem = {[key: string]: string};
+
+export type SourceFilePreviewSheetsItem = {
+  name: string;
+  headers: string[];
+  rowCount: number;
+  sampleRows: SourceFilePreviewSheetsItemSampleRowsItem[];
+  candidate: boolean;
+};
+
+export type SourceFilePreviewMapping = {[key: string]: string};
+
+export type SourceFilePreviewPreviewRowsItem = {[key: string]: string};
+
+export interface SourceFilePreview {
+  id: string;
+  filename: string;
+  status: string;
+  /** @nullable */
+  parserVersion?: string | null;
+  /** @nullable */
+  mappingVersion?: string | null;
+  sheets: SourceFilePreviewSheetsItem[];
+  mapping: SourceFilePreviewMapping;
+  previewRows: SourceFilePreviewPreviewRowsItem[];
+  issues: ValidationIssue[];
+  validRowCount: number;
+  errorCount: number;
+  warningCount: number;
+}
+
+export interface SourceFileImport {
+  sourceFileId: string;
+  status: string;
+  importedCount: number;
+  alreadyImported: boolean;
 }
 
 /**
@@ -400,6 +461,7 @@ export const ListSourceFilesStatus = {
   PARSING: 'PARSING',
   MAPPING: 'MAPPING',
   VALIDATING: 'VALIDATING',
+  IMPORTING: 'IMPORTING',
   PROCESSED: 'PROCESSED',
   WARNING: 'WARNING',
   FAILED: 'FAILED',

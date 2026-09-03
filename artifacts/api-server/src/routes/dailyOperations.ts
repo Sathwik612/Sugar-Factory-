@@ -8,14 +8,16 @@ import { canEditSection } from "../lib/authz";
 import { recordAudit } from "../lib/audit";
 import { evaluateDailyOperationAlerts } from "../lib/operationalAlerts";
 import { assignApprovalTask } from "../lib/approvals";
+import {
+  calculateDailyOperationValues,
+  calculateKpiStatus,
+  DEFAULT_KPI_THRESHOLDS,
+  toFiniteNumber,
+} from "../lib/kpi";
 
 const router: IRouter = Router();
 
-const asNumber = (value: unknown) => {
-  if (value === null || value === undefined || value === "") return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-};
+const asNumber = toFiniteNumber;
 
 const asObject = (value: unknown) =>
   value && typeof value === "object" && !Array.isArray(value)
@@ -53,56 +55,6 @@ function validateBody(body: Record<string, unknown>) {
     }
   }
   return { errors, production, timeAccount, caneCrushed, sugarProduced, availableHours, hoursWorked };
-}
-
-function calculatePayload(body: Record<string, unknown>, validation: ReturnType<typeof validateBody>) {
-  const energy = asObject(body.energy);
-  const efficiency = asObject(body.efficiency);
-  const powerGenerated = asNumber(energy.powerGenerated ?? validation.production.powerGenerated);
-  const powerUsed = asNumber(energy.powerUsed);
-  const steamConsumption = asNumber(energy.steamConsumption);
-  const recovery =
-    validation.caneCrushed && validation.sugarProduced !== null
-      ? (validation.sugarProduced / validation.caneCrushed) * 100
-      : null;
-  const hoursLost =
-    validation.availableHours !== null && validation.hoursWorked !== null
-      ? Math.max(0, validation.availableHours - validation.hoursWorked)
-      : asNumber(validation.timeAccount.hoursLost);
-  const powerExported =
-    powerGenerated !== null && powerUsed !== null ? Math.max(0, powerGenerated - powerUsed) : null;
-  const powerKwhPerMtCane =
-    powerUsed !== null && validation.caneCrushed && validation.caneCrushed > 0
-      ? powerUsed / validation.caneCrushed
-      : asNumber(efficiency.powerKwhPerMtCane);
-  const stoppages = asArray(body.stoppages).map((stoppage) => {
-    const item = asObject(stoppage);
-    const start = typeof item.startTime === "string" ? item.startTime : "";
-    const end = typeof item.endTime === "string" ? item.endTime : "";
-    const [startHours, startMinutes] = start.split(":").map(Number);
-    const [endHours, endMinutes] = end.split(":").map(Number);
-    let durationHours: number | null = null;
-    if ([startHours, startMinutes, endHours, endMinutes].every(Number.isFinite)) {
-      let minutes = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
-      if (minutes < 0) minutes += 24 * 60;
-      durationHours = minutes / 60;
-    }
-    return { ...item, durationHours };
-  });
-  const stoppageHours = stoppages.reduce(
-    (total, item) => total + (asNumber(asObject(item).durationHours) ?? 0),
-    0,
-  );
-
-  return {
-    production: { ...validation.production, recovery },
-    efficiency: { ...efficiency, powerKwhPerMtCane },
-    timeAccount: { ...validation.timeAccount, hoursLost, stoppageHours },
-    energy: { ...energy, powerGenerated, powerUsed, powerExported, steamConsumption },
-    quality: asObject(body.quality),
-    stoppages,
-    materials: asArray(body.materials),
-  };
 }
 
 async function upsertCanonicalKpi(
@@ -291,7 +243,17 @@ router.post("/daily-operations", requireAuth, async (req, res, next) => {
     const submittedBy =
       status === "SUBMITTED" ? actor.id : existingRecord?.submittedBy ?? null;
     const priority = body.priority === "HIGH" ? "HIGH" : existingRecord?.priority ?? "NORMAL";
-    const calculated = calculatePayload(scopedBody, validation);
+    const calculated = {
+      ...calculateDailyOperationValues({
+        production: validation.production,
+        timeAccount: validation.timeAccount,
+        energy: asObject(scopedBody.energy),
+        efficiency: asObject(scopedBody.efficiency),
+        stoppages: asArray(scopedBody.stoppages).map(asObject),
+      }),
+      quality: asObject(body.quality),
+      materials: asArray(body.materials),
+    };
     const now = new Date();
     const [record] = await db
       .insert(dailyOperations)
@@ -382,8 +344,24 @@ router.post("/daily-operations", requireAuth, async (req, res, next) => {
       const timeAccount = calculated.timeAccount as Record<string, number | null>;
       await upsertCanonicalKpi(factoryId, day.id, "cane_crushed", "Cane Crushed", asNumber(production.caneCrushed), "t", "GOOD");
       await upsertCanonicalKpi(factoryId, day.id, "sugar_produced", "Sugar Produced", asNumber(production.sugarProduced), "t", "GOOD");
-      await upsertCanonicalKpi(factoryId, day.id, "recovery", "Recovery", asNumber(production.recovery), "%", asNumber(production.recovery) !== null && asNumber(production.recovery)! < 9.4 ? "CRITICAL" : "GOOD");
-      await upsertCanonicalKpi(factoryId, day.id, "downtime", "Downtime", asNumber(timeAccount.hoursLost), "h", asNumber(timeAccount.hoursLost) !== null && asNumber(timeAccount.hoursLost)! > 10 ? "WATCH" : "GOOD");
+      await upsertCanonicalKpi(
+        factoryId,
+        day.id,
+        "recovery",
+        "Recovery",
+        asNumber(production.recovery),
+        "%",
+        calculateKpiStatus("recovery", asNumber(production.recovery), DEFAULT_KPI_THRESHOLDS.recovery),
+      );
+      await upsertCanonicalKpi(
+        factoryId,
+        day.id,
+        "downtime",
+        "Downtime",
+        asNumber(timeAccount.hoursLost),
+        "h",
+        calculateKpiStatus("downtime", asNumber(timeAccount.hoursLost), DEFAULT_KPI_THRESHOLDS.downtime),
+      );
       await upsertCanonicalKpi(factoryId, day.id, "power_generated", "Power Generated", asNumber(energy.powerGenerated), "kWh", "GOOD");
       await upsertCanonicalKpi(factoryId, day.id, "steam_consumption", "Steam Consumption", asNumber(energy.steamConsumption), "t/t cane", "GOOD");
 

@@ -8,6 +8,8 @@
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
     "test:api": "pnpm --filter @workspace/scripts exec tsx ../tests/api/offline-approvals.api.test.ts",
+    "test:kpi": "pnpm --filter @workspace/scripts exec tsx ../tests/unit/kpi.test.ts",
+    "test:workbook": "pnpm --filter @workspace/scripts exec tsx ../tests/unit/workbook-import.test.ts",
     "test:browser": "playwright test",
     "test:offline-approvals": "bash tests/run-offline-approvals.sh",
     "dev:local": "bash ./scripts/dev-local.sh",
@@ -17,7 +19,8 @@
   },
   "private": true,
   "dependencies": {
-    "@replit/connectors-sdk": "^0.4.1"
+    "@replit/connectors-sdk": "^0.4.1",
+    "@swc/helpers": "^0.5.23"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

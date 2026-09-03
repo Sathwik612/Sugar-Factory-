@@ -88,7 +88,7 @@ paths:
           in: query
           schema:
             type: ["string", "null"]
-            enum: [RECEIVED, HASHED, PARSING, MAPPING, VALIDATING, PROCESSED, WARNING, FAILED, DUPLICATE]
+            enum: [RECEIVED, HASHED, PARSING, MAPPING, VALIDATING, IMPORTING, PROCESSED, WARNING, FAILED, DUPLICATE]
         - name: limit
           in: query
           schema:
@@ -145,6 +145,86 @@ paths:
                 $ref: "#/components/schemas/SourceFile"
         "400":
           description: Unsupported or invalid upload
+  /source-files/{fileId}/preview:
+    get:
+      operationId: previewSourceFile
+      tags: [source-files]
+      summary: Inspect a retained workbook before import
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Workbook inspection and validation preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceFilePreview"
+  /source-files/{fileId}/import:
+    post:
+      operationId: importSourceFile
+      tags: [source-files]
+      summary: Import a validated workbook into canonical Daily Operations drafts
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Workbook imported
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceFileImport"
+        "409":
+          description: Validation errors or existing-record conflict
+  /storage/uploads/request-url:
+    post:
+      operationId: requestSourceUploadUrl
+      tags: [source-files]
+      summary: Request a protected App Storage upload URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StorageUploadRequest"
+      responses:
+        "200":
+          description: Presigned upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorageUploadResponse"
+        "400":
+          description: Unsupported or oversized upload
+  /reports/daily/{productionDate}/pdf:
+    get:
+      operationId: downloadDailyReportPdf
+      tags: [reports]
+      summary: Download the deterministic application-generated daily report PDF
+      parameters:
+        - name: productionDate
+          in: path
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Daily management report PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Report not available
   /auth/user:
     get:
       tags: [Auth]
@@ -735,7 +815,7 @@ components:
           format: date
         status:
           type: string
-          enum: [RECEIVED, HASHED, PARSING, MAPPING, VALIDATING, PROCESSED, WARNING, FAILED, DUPLICATE]
+          enum: [RECEIVED, HASHED, PARSING, MAPPING, VALIDATING, IMPORTING, PROCESSED, WARNING, FAILED, DUPLICATE]
         uploadedAt:
           type: string
           format: date-time
@@ -791,8 +871,11 @@ components:
           type: ["string", "null"]
     SourceFileUpload:
       type: object
-      required: [filename, sizeBytes]
+      required: [objectPath, filename, sizeBytes]
       properties:
+        objectPath:
+          type: string
+          minLength: 1
         filename:
           type: string
           minLength: 1
@@ -801,4 +884,102 @@ components:
           minimum: 0
         contentType:
           type: ["string", "null"]
+    StorageUploadRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        size:
+          type: number
+          minimum: 1
+        contentType:
+          type: string
+    StorageUploadResponse:
+      type: object
+      required: [uploadURL, objectPath, metadata]
+      properties:
+        uploadURL:
+          type: string
+        objectPath:
+          type: string
+        metadata:
+          type: object
+          required: [name, size, contentType]
+          properties:
+            name:
+              type: string
+            size:
+              type: number
+            contentType:
+              type: string
+    SourceFilePreview:
+      type: object
+      required: [id, filename, status, sheets, mapping, previewRows, issues, validRowCount, errorCount, warningCount]
+      properties:
+        id:
+          type: string
+        filename:
+          type: string
+        status:
+          type: string
+        parserVersion:
+          type: ["string", "null"]
+        mappingVersion:
+          type: ["string", "null"]
+        sheets:
+          type: array
+          items:
+            type: object
+            required: [name, headers, rowCount, sampleRows, candidate]
+            properties:
+              name:
+                type: string
+              headers:
+                type: array
+                items:
+                  type: string
+              rowCount:
+                type: number
+              sampleRows:
+                type: array
+                items:
+                  type: object
+                  additionalProperties:
+                    type: string
+              candidate:
+                type: boolean
+        mapping:
+          type: object
+          additionalProperties:
+            type: string
+        previewRows:
+          type: array
+          items:
+            type: object
+            additionalProperties:
+              type: string
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/ValidationIssue"
+        validRowCount:
+          type: number
+        errorCount:
+          type: number
+        warningCount:
+          type: number
+    SourceFileImport:
+      type: object
+      required: [sourceFileId, status, importedCount, alreadyImported]
+      properties:
+        sourceFileId:
+          type: string
+        status:
+          type: string
+        importedCount:
+          type: number
+        alreadyImported:
+          type: boolean
 

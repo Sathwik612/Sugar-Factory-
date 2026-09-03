@@ -37,7 +37,11 @@ import type {
   ReviewInput,
   SourceFile,
   SourceFileDetail,
-  SourceFileUpload
+  SourceFileImport,
+  SourceFilePreview,
+  SourceFileUpload,
+  StorageUploadRequest,
+  StorageUploadResponse
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -614,6 +618,302 @@ export const useUploadSourceFile = <TError = ErrorType<void>,
       > => {
       return useMutation(getUploadSourceFileMutationOptions(options));
     }
+
+export const getPreviewSourceFileUrl = (fileId: string,) => {
+
+
+
+
+  return `/api/source-files/${fileId}/preview`
+}
+
+/**
+ * @summary Inspect a retained workbook before import
+ */
+export const previewSourceFile = async (fileId: string, options?: Parameters<typeof customFetch>[1]): Promise<SourceFilePreview> => {
+
+  return customFetch<SourceFilePreview>(getPreviewSourceFileUrl(fileId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getPreviewSourceFileQueryKey = (fileId: string,) => {
+    return [
+    `/api/source-files/${fileId}/preview`
+    ] as const;
+    }
+
+
+export const getPreviewSourceFileQueryOptions = <TData = Awaited<ReturnType<typeof previewSourceFile>>, TError = ErrorType<unknown>>(fileId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof previewSourceFile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPreviewSourceFileQueryKey(fileId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof previewSourceFile>>> = ({ signal }) => previewSourceFile(fileId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: fileId !== null && fileId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof previewSourceFile>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type PreviewSourceFileQueryResult = NonNullable<Awaited<ReturnType<typeof previewSourceFile>>>
+export type PreviewSourceFileQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Inspect a retained workbook before import
+ */
+
+export function usePreviewSourceFile<TData = Awaited<ReturnType<typeof previewSourceFile>>, TError = ErrorType<unknown>>(
+ fileId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof previewSourceFile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getPreviewSourceFileQueryOptions(fileId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getImportSourceFileUrl = (fileId: string,) => {
+
+
+
+
+  return `/api/source-files/${fileId}/import`
+}
+
+/**
+ * @summary Import a validated workbook into canonical Daily Operations drafts
+ */
+export const importSourceFile = async (fileId: string, options?: Parameters<typeof customFetch>[1]): Promise<SourceFileImport> => {
+
+  return customFetch<SourceFileImport>(getImportSourceFileUrl(fileId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getImportSourceFileMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importSourceFile>>, TError,{fileId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importSourceFile>>, TError,{fileId: string}, TContext> => {
+
+const mutationKey = ['importSourceFile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importSourceFile>>, {fileId: string}> = (props) => {
+          const {fileId} = props ?? {};
+
+          return  importSourceFile(fileId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportSourceFileMutationResult = NonNullable<Awaited<ReturnType<typeof importSourceFile>>>
+
+    export type ImportSourceFileMutationError = ErrorType<void>
+
+    /**
+ * @summary Import a validated workbook into canonical Daily Operations drafts
+ */
+export const useImportSourceFile = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importSourceFile>>, TError,{fileId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importSourceFile>>,
+        TError,
+        {fileId: string},
+        TContext
+      > => {
+      return useMutation(getImportSourceFileMutationOptions(options));
+    }
+
+export const getRequestSourceUploadUrlUrl = () => {
+
+
+
+
+  return `/api/storage/uploads/request-url`
+}
+
+/**
+ * @summary Request a protected App Storage upload URL
+ */
+export const requestSourceUploadUrl = async (storageUploadRequest: StorageUploadRequest, options?: Parameters<typeof customFetch>[1]): Promise<StorageUploadResponse> => {
+
+  return customFetch<StorageUploadResponse>(getRequestSourceUploadUrlUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(storageUploadRequest)
+  }
+);}
+
+
+
+
+
+export const getRequestSourceUploadUrlMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestSourceUploadUrl>>, TError,{data: BodyType<StorageUploadRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestSourceUploadUrl>>, TError,{data: BodyType<StorageUploadRequest>}, TContext> => {
+
+const mutationKey = ['requestSourceUploadUrl'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestSourceUploadUrl>>, {data: BodyType<StorageUploadRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestSourceUploadUrl(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestSourceUploadUrlMutationResult = NonNullable<Awaited<ReturnType<typeof requestSourceUploadUrl>>>
+    export type RequestSourceUploadUrlMutationBody = BodyType<StorageUploadRequest>
+    export type RequestSourceUploadUrlMutationError = ErrorType<void>
+
+    /**
+ * @summary Request a protected App Storage upload URL
+ */
+export const useRequestSourceUploadUrl = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestSourceUploadUrl>>, TError,{data: BodyType<StorageUploadRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestSourceUploadUrl>>,
+        TError,
+        {data: BodyType<StorageUploadRequest>},
+        TContext
+      > => {
+      return useMutation(getRequestSourceUploadUrlMutationOptions(options));
+    }
+
+export const getDownloadDailyReportPdfUrl = (productionDate: string,) => {
+
+
+
+
+  return `/api/reports/daily/${productionDate}/pdf`
+}
+
+/**
+ * @summary Download the deterministic application-generated daily report PDF
+ */
+export const downloadDailyReportPdf = async (productionDate: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadDailyReportPdfUrl(productionDate),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadDailyReportPdfQueryKey = (productionDate: string,) => {
+    return [
+    `/api/reports/daily/${productionDate}/pdf`
+    ] as const;
+    }
+
+
+export const getDownloadDailyReportPdfQueryOptions = <TData = Awaited<ReturnType<typeof downloadDailyReportPdf>>, TError = ErrorType<void>>(productionDate: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadDailyReportPdf>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadDailyReportPdfQueryKey(productionDate);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadDailyReportPdf>>> = ({ signal }) => downloadDailyReportPdf(productionDate, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: productionDate !== null && productionDate !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadDailyReportPdf>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadDailyReportPdfQueryResult = NonNullable<Awaited<ReturnType<typeof downloadDailyReportPdf>>>
+export type DownloadDailyReportPdfQueryError = ErrorType<void>
+
+
+/**
+ * @summary Download the deterministic application-generated daily report PDF
+ */
+
+export function useDownloadDailyReportPdf<TData = Awaited<ReturnType<typeof downloadDailyReportPdf>>, TError = ErrorType<void>>(
+ productionDate: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadDailyReportPdf>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadDailyReportPdfQueryOptions(productionDate,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetCurrentAuthUserUrl = () => {
 

@@ -41,6 +41,7 @@ export const productionDays = pgTable(
 export const sourceFiles = pgTable("source_files", {
   id: uuid("id").defaultRandom().primaryKey(),
   factoryId: uuid("factory_id").notNull().references(() => factories.id),
+  uploadedBy: varchar("uploaded_by").references(() => usersTable.id),
   filename: text("filename").notNull(),
   reportType: text("report_type").notNull(),
   reportingDate: date("reporting_date"),
@@ -48,6 +49,14 @@ export const sourceFiles = pgTable("source_files", {
   uploadedAt: timestamp("uploaded_at", { withTimezone: true }).defaultNow().notNull(),
   sizeBytes: integer("size_bytes").notNull().default(0),
   sha256: text("sha256").notNull(),
+  storageKey: text("storage_key"),
+  contentType: text("content_type"),
+  parserVersion: text("parser_version"),
+  mappingVersion: text("mapping_version"),
+  workbookSheets: jsonb("workbook_sheets").notNull().default([]),
+  mapping: jsonb("mapping").notNull().default({}),
+  previewRows: jsonb("preview_rows").notNull().default([]),
+  importedAt: timestamp("imported_at", { withTimezone: true }),
   synthetic: boolean("synthetic").notNull().default(false),
   issueCount: integer("issue_count").notNull().default(0),
 });

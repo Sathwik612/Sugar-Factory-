@@ -8,6 +8,8 @@
 
 export interface SourceFileUpload {
   /** @minLength 1 */
+  objectPath: string;
+  /** @minLength 1 */
   filename: string;
   /** @minimum 0 */
   sizeBytes: number;
