@@ -27,7 +27,9 @@ async function start() {
   }
   const server = app.listen(port, () => {
     logger.info({ port }, "Server listening");
-    startPushDeliveryWorker();
+    if (process.env.DISABLE_PUSH_DELIVERY_WORKER !== "true") {
+      startPushDeliveryWorker();
+    }
   });
   let shuttingDown = false;
   const shutdown = async (signal: string) => {
