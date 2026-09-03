@@ -4,6 +4,7 @@ import { GetDashboardQueryParams, GetDashboardResponse } from "@workspace/api-zo
 import { db } from "@workspace/db";
 import { anomalies, factories, kpiValues, sourceFiles, trendPoints } from "@workspace/db";
 import { getDemoFactoryId, getProductionDay } from "../lib/demoData";
+import { getFactoryDate, getFactoryNow } from "../lib/factoryTime";
 import { requireRoles } from "../lib/authz";
 
 const router: IRouter = Router();
@@ -20,18 +21,29 @@ router.get("/dashboard", requireRoles("MANAGER", "ADMIN"), async (req, res, next
       return;
     }
     const factory = (await db.select().from(factories).where(eq(factories.id, factoryId)).limit(1))[0];
+    if (!factory) {
+      res.status(503).json({ error: "Factory configuration could not be loaded." });
+      return;
+    }
+    const productionDate = params.date
+      ? params.date.toISOString().slice(0, 10)
+      : getFactoryDate(undefined, factory.timezone);
     const day = await getProductionDay(
       factoryId,
-      params.date ? params.date.toISOString().slice(0, 10) : undefined,
+      productionDate,
     );
-    if (!day) {
+    if (!day && params.date) {
       res.status(404).json({ error: "No production day is available." });
       return;
     }
 
     const [kpis, exceptions, trend] = await Promise.all([
-      db.select().from(kpiValues).where(eq(kpiValues.productionDayId, day.id)).orderBy(asc(kpiValues.code)),
-      db.select().from(anomalies).where(eq(anomalies.productionDayId, day.id)).orderBy(desc(anomalies.severity)),
+      day
+        ? db.select().from(kpiValues).where(eq(kpiValues.productionDayId, day.id)).orderBy(asc(kpiValues.code))
+        : Promise.resolve([]),
+      day
+        ? db.select().from(anomalies).where(eq(anomalies.productionDayId, day.id)).orderBy(desc(anomalies.severity))
+        : Promise.resolve([]),
       db.select().from(trendPoints).where(eq(trendPoints.factoryId, factoryId)).orderBy(asc(trendPoints.productionDate)),
     ]);
 
@@ -41,8 +53,10 @@ router.get("/dashboard", requireRoles("MANAGER", "ADMIN"), async (req, res, next
       .where(eq(sourceFiles.factoryId, factoryId));
     const result = {
       factory: factory.name,
-      productionDate: day.productionDate,
-      dataStatus: day.dataStatus,
+      productionDate,
+      reportingTimezone: factory.timezone,
+      reportingAt: getFactoryNow().toISOString(),
+      dataStatus: day?.dataStatus ?? "UNAVAILABLE",
       kpis: kpis.map((kpi) => ({
         code: kpi.code,
         label: kpi.label,

@@ -9,7 +9,7 @@ import type { ProductionDateParameter } from './productionDateParameter';
 
 export type GetDashboardParams = {
 /**
- * Factory-local production date; defaults to the latest available date
+ * Factory-local production date; defaults to the current factory-local reporting date
  */
 date?: ProductionDateParameter;
 };

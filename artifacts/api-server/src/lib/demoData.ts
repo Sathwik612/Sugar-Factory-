@@ -585,13 +585,17 @@ async function refreshDemoComparisons(factoryId: string) {
   }
 }
 
-export async function getDemoFactoryId() {
+export async function getDemoFactory() {
   const factory = await db
-    .select({ id: factories.id })
+    .select({ id: factories.id, name: factories.name, timezone: factories.timezone })
     .from(factories)
     .where(eq(factories.isDemo, true))
     .limit(1);
-  return factory[0]?.id ?? null;
+  return factory[0] ?? null;
+}
+
+export async function getDemoFactoryId() {
+  return (await getDemoFactory())?.id ?? null;
 }
 
 export async function getProductionDay(factoryId: string, productionDate?: string) {

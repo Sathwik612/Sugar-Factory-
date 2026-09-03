@@ -2,7 +2,8 @@ import { and, asc, eq } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { anomalies, dailyOperations, kpiValues, productionDays, trendPoints } from "@workspace/db";
-import { getDemoFactoryId } from "../lib/demoData";
+import { getDemoFactory, getDemoFactoryId } from "../lib/demoData";
+import { getFactoryDate } from "../lib/factoryTime";
 import { requireAuth } from "../middlewares/authMiddleware";
 import { canEditSection } from "../lib/authz";
 import { recordAudit } from "../lib/audit";
@@ -137,11 +138,12 @@ async function refreshSubmittedComparisons(factoryId: string, productionDate: st
 
 router.get("/daily-operations/:productionDate", requireAuth, async (req, res, next) => {
   try {
-    const factoryId = await getDemoFactoryId();
-    if (!factoryId) {
+    const factory = await getDemoFactory();
+    if (!factory) {
       res.status(503).json({ error: "No factory has been configured yet." });
       return;
     }
+    const factoryId = factory.id;
     const shift = typeof req.query.shift === "string" ? req.query.shift : "GENERAL";
     const [record] = await db
       .select()
@@ -162,17 +164,25 @@ router.get("/daily-operations/:productionDate", requireAuth, async (req, res, ne
 
 router.post("/daily-operations", requireAuth, async (req, res, next) => {
   try {
-    const factoryId = await getDemoFactoryId();
-    if (!factoryId) {
+    const factory = await getDemoFactory();
+    if (!factory) {
       res.status(503).json({ error: "No factory has been configured yet." });
       return;
     }
+    const factoryId = factory.id;
     if (!req.user) {
       res.status(401).json({ error: "Authentication required" });
       return;
     }
     const actor = req.user;
-    const body = asObject(req.body);
+    const requestBody = asObject(req.body);
+    const body: Record<string, unknown> = {
+      ...requestBody,
+      productionDate:
+        typeof requestBody.productionDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(requestBody.productionDate)
+          ? requestBody.productionDate
+          : getFactoryDate(undefined, factory.timezone),
+    };
     const shift = typeof body.shift === "string" && body.shift ? body.shift : "GENERAL";
     const [existingRecord] = await db
       .select()

@@ -14,6 +14,10 @@ export interface DailyReport {
   id: string;
   factory: string;
   productionDate: Date;
+  /** IANA timezone used for the selected report period and factory-facing timestamps */
+  reportingTimezone: string;
+  /** Current reporting instant; interpret it using reportingTimezone */
+  reportingAt: Date;
   reportVersion: string;
   generatedAt?: Date;
   executiveSummary: string;

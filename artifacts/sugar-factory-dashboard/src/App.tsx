@@ -252,7 +252,7 @@ function Overview() {
   const dashboard: any = query.data;
   if (query.isLoading) return <OverviewSkeleton />;
   if (query.isError) return <ErrorState onRetry={() => query.refetch()} message="We could not load the latest management view." />;
-  if (!dashboard) return <EmptyState title="No production view yet" detail="Once a validated source file is processed, the latest production date will appear here." icon={<Gauge size={22} />} />;
+  if (!dashboard) return <EmptyState title="No production view yet" detail="The current factory-local reporting date could not be loaded." icon={<Gauge size={22} />} />;
   const critical = dashboard.exceptions?.filter((item: any) => item.severity === 'CRITICAL') ?? [];
   const warning = dashboard.exceptions?.filter((item: any) => item.severity !== 'CRITICAL') ?? [];
   return <div className="reveal">
@@ -280,7 +280,7 @@ function TrendChart({ trend }: { trend: any[] }) {
 
 function ReportPage() {
   const params = useParams<{ productionDate: string }>();
-  const productionDate = params.productionDate === 'latest' ? '' : params.productionDate;
+  const productionDate = params.productionDate === 'latest' ? 'current' : params.productionDate;
   const reportQuery = useGetDailyReport(productionDate);
   const lineageQuery = useGetDailyReportLineage(productionDate);
   const report: any = reportQuery.data;
@@ -410,7 +410,7 @@ type OperationsForm = {
 };
 
 const operationsInitial: OperationsForm = {
-  productionDate: '2026-08-30',
+  productionDate: new URLSearchParams(window.location.search).get('date')?.match(/^\d{4}-\d{2}-\d{2}$/)?.[0] ?? '',
   season: '2025-26',
   shift: 'GENERAL',
   status: 'DRAFT',
@@ -517,6 +517,21 @@ function OperationsPage() {
   useEffect(() => {
     if (!user) return;
     let active = true;
+    if (!form.productionDate) {
+      void fetch('/api/operations-suite', { credentials: 'include' })
+        .then(async response => {
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(body.error || 'The factory reporting date could not be loaded.');
+          if (active && typeof body.productionDate === 'string') {
+            setForm(current => current.productionDate ? current : { ...operationsInitial, productionDate: body.productionDate });
+          }
+        })
+        .catch(loadError => {
+          if (active && online) setError(loadError instanceof Error ? loadError.message : 'The factory reporting date could not be loaded.');
+        })
+        .finally(() => { if (active) setLoading(false); });
+      return () => { active = false; };
+    }
     setLoading(true);
     setError('');
     const key = dailyDraftKey(user.id, form.productionDate, form.shift);

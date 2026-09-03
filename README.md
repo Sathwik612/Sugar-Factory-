@@ -463,6 +463,7 @@ When `DATABASE_URL` is present, it takes precedence over the individual PostgreS
 | `WEB_PORT` | Dashboard port used by local scripts | `5173` |
 | `API_ORIGIN` | API target for local Vite proxy | `http://localhost:8080` |
 | `BASE_PATH` | Dashboard base path | `/` |
+| `FACTORY_TIMEZONE` | Fallback IANA timezone for factory-local reporting | `Asia/Kolkata` |
 | `TRUST_PROXY` | Trusted reverse-proxy hop count/name | empty locally |
 | `LOG_LEVEL` | Pino log level | `info` |
 | `JSON_BODY_LIMIT` | JSON request limit | `1mb` |

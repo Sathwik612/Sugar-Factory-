@@ -21,7 +21,7 @@ export const HealthCheckResponse = zod.object({
  * @summary Get the management dashboard
  */
 export const GetDashboardQueryParams = zod.object({
-  "date": zod.date().optional().describe('Factory-local production date; defaults to the latest available date')
+  "date": zod.date().optional().describe('Factory-local production date; defaults to the current factory-local reporting date')
 })
 
 export const getDashboardResponseKpisItemSourceCountMin = 0;
@@ -31,6 +31,8 @@ export const getDashboardResponseKpisItemSourceCountMin = 0;
 export const GetDashboardResponse = zod.object({
   "factory": zod.string(),
   "productionDate": zod.coerce.date(),
+  "reportingTimezone": zod.string().describe('IANA timezone used to resolve the reporting date and factory-facing timestamps'),
+  "reportingAt": zod.coerce.date().describe('Current reporting instant; interpret it using reportingTimezone'),
   "dataStatus": zod.enum(['COMPLETE', 'PARTIAL', 'UNAVAILABLE']),
   "kpis": zod.array(zod.object({
   "code": zod.string(),
@@ -77,6 +79,8 @@ export const GetDailyReportResponse = zod.object({
   "id": zod.string(),
   "factory": zod.string(),
   "productionDate": zod.coerce.date(),
+  "reportingTimezone": zod.string().describe('IANA timezone used for the selected report period and factory-facing timestamps'),
+  "reportingAt": zod.coerce.date().describe('Current reporting instant; interpret it using reportingTimezone'),
   "reportVersion": zod.string(),
   "generatedAt": zod.coerce.date().optional(),
   "executiveSummary": zod.string(),

@@ -19,7 +19,8 @@ import { db } from "@workspace/db";
 
 import { recordAudit } from "../lib/audit";
 import { requireRoles, type Role } from "../lib/authz";
-import { getDemoFactoryId } from "../lib/demoData";
+import { getDemoFactory, getDemoFactoryId } from "../lib/demoData";
+import { getFactoryDate, getFactoryNow } from "../lib/factoryTime";
 import {
   evaluateMaintenanceAlerts,
   evaluateQualitySampleAlerts,
@@ -43,10 +44,19 @@ const asNumber = (value: unknown) => {
   return Number.isFinite(number) ? number : null;
 };
 
-const asDate = (value: unknown, fallback = "2026-08-30") => {
+const asDate = (value: unknown, fallback = getFactoryDate()) => {
   const date = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : fallback;
   return date;
 };
+
+async function currentFactoryDate(factoryId: string): Promise<string> {
+  const [factory] = await db
+    .select({ timezone: factories.timezone })
+    .from(factories)
+    .where(eq(factories.id, factoryId))
+    .limit(1);
+  return getFactoryDate(undefined, factory?.timezone);
+}
 
 function jsonObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -62,12 +72,13 @@ function jsonArray(value: unknown): Array<Record<string, unknown>> {
 
 router.get("/operations-suite", requireRoles(...allOperators), async (req, res, next) => {
   try {
-    const factoryId = await getDemoFactoryId();
-    if (!factoryId) {
+    const factory = await getDemoFactory();
+    if (!factory) {
       res.status(503).json({ error: "No demo factory has been configured." });
       return;
     }
-    const productionDate = asDate(req.query.date);
+    const factoryId = factory.id;
+    const productionDate = asDate(req.query.date, getFactoryDate(undefined, factory.timezone));
     const [settings, targets, handovers, samples, movements, maintenance, alerts, sourceRows, day] =
       await Promise.all([
         db.select().from(factorySettings).where(eq(factorySettings.factoryId, factoryId)).limit(1),
@@ -115,8 +126,10 @@ router.get("/operations-suite", requireRoles(...allOperators), async (req, res, 
     });
 
     res.json({
-      factory: (await db.select({ name: factories.name }).from(factories).where(eq(factories.id, factoryId)).limit(1))[0]?.name,
+      factory: factory.name,
       productionDate,
+      reportingTimezone: factory.timezone,
+      reportingAt: getFactoryNow().toISOString(),
       settings: settings[0] ?? {
         season: "2025-26",
         shiftConfig: ["A", "B", "C", "GENERAL"],
@@ -158,15 +171,20 @@ router.post("/operations-suite/handover", requireRoles(...allOperators), async (
       return;
     }
     const factoryId = await getDemoFactoryId();
+    if (!factoryId) {
+      res.status(503).json({ error: "No demo factory has been configured." });
+      return;
+    }
+    const defaultDate = await currentFactoryDate(factoryId);
     const [created] = await db.insert(operationalActions).values({
-      factoryId: factoryId!,
-      productionDate: asDate(productionDate),
+      factoryId,
+      productionDate: asDate(productionDate, defaultDate),
       shift: shift || "GENERAL",
       department: req.user!.department,
       kind: "HANDOVER",
       title: String(title).slice(0, 160),
       detail: String(detail).slice(0, 2000),
-      dueDate: dueDate ? asDate(dueDate) : null,
+      dueDate: dueDate ? asDate(dueDate, defaultDate) : null,
       createdBy: req.user!.id,
       isDemo: true,
     }).returning();
@@ -214,9 +232,14 @@ router.patch("/operations-suite/actions/:id", requireRoles(...allOperators), asy
 router.post("/operations-suite/quality", requireRoles("QUALITY_OPERATOR", ...leadership), async (req, res, next) => {
   try {
     const factoryId = await getDemoFactoryId();
+    if (!factoryId) {
+      res.status(503).json({ error: "No demo factory has been configured." });
+      return;
+    }
+    const defaultDate = await currentFactoryDate(factoryId);
     const [created] = await db.insert(qualitySamples).values({
-      factoryId: factoryId!,
-      productionDate: asDate(req.body?.productionDate),
+      factoryId,
+      productionDate: asDate(req.body?.productionDate, defaultDate),
       shift: req.body?.shift || "GENERAL",
       sampleType: String(req.body?.sampleType || "Mixed juice"),
       brix: asNumber(req.body?.brix)?.toFixed(3),
@@ -243,9 +266,14 @@ router.post("/operations-suite/stores", requireRoles("STORES_OPERATOR", ...leade
       return;
     }
     const factoryId = await getDemoFactoryId();
+    if (!factoryId) {
+      res.status(503).json({ error: "No demo factory has been configured." });
+      return;
+    }
+    const defaultDate = await currentFactoryDate(factoryId);
     const [created] = await db.insert(storeMovements).values({
-      factoryId: factoryId!,
-      productionDate: asDate(req.body?.productionDate),
+      factoryId,
+      productionDate: asDate(req.body?.productionDate, defaultDate),
       material: String(req.body.material).slice(0, 120),
       movementType: ["RECEIPT", "ISSUE", "ADJUSTMENT"].includes(req.body?.movementType) ? req.body.movementType : "ISSUE",
       quantity: quantity.toFixed(4),
@@ -270,9 +298,14 @@ router.post("/operations-suite/maintenance", requireRoles("ENGINEERING_OPERATOR"
       return;
     }
     const factoryId = await getDemoFactoryId();
+    if (!factoryId) {
+      res.status(503).json({ error: "No demo factory has been configured." });
+      return;
+    }
+    const defaultDate = await currentFactoryDate(factoryId);
     const [created] = await db.insert(maintenanceWorkOrders).values({
-      factoryId: factoryId!,
-      productionDate: req.body?.productionDate ? asDate(req.body.productionDate) : null,
+      factoryId,
+      productionDate: req.body?.productionDate ? asDate(req.body.productionDate, defaultDate) : null,
       asset: String(req.body.asset).slice(0, 160),
       issue: String(req.body.issue).slice(0, 2000),
       workType: ["PLANNED", "BREAKDOWN", "INSPECTION"].includes(req.body?.workType) ? req.body.workType : "BREAKDOWN",
@@ -330,7 +363,11 @@ router.post("/operations-suite/targets", requireRoles(...leadership), async (req
       return;
     }
     const factoryId = await getDemoFactoryId();
-    const date = asDate(req.body?.productionDate);
+    if (!factoryId) {
+      res.status(503).json({ error: "No demo factory has been configured." });
+      return;
+    }
+    const date = asDate(req.body?.productionDate, await currentFactoryDate(factoryId));
     const shift = String(req.body?.shift || "ALL");
     const [existing] = await db.select().from(kpiTargets).where(and(eq(kpiTargets.factoryId, factoryId!), eq(kpiTargets.productionDate, date), eq(kpiTargets.shift, shift), eq(kpiTargets.code, String(req.body.code)))).limit(1);
     const [saved] = existing

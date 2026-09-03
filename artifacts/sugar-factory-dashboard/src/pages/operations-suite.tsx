@@ -75,7 +75,7 @@ function roleCan(user: AuthUser | null, role: AuthUser["role"]) {
 export default function OperationsSuitePage() {
   const { user } = useAuth();
   const [active, setActive] = useState<(typeof tabs)[number][0]>("control");
-  const [date, setDate] = useState("2026-08-30");
+  const [date, setDate] = useState(() => new URLSearchParams(window.location.search).get("date")?.match(/^\d{4}-\d{2}-\d{2}$/)?.[0] ?? "");
   const [data, setData] = useState<SuiteData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -92,9 +92,10 @@ export default function OperationsSuitePage() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`/api/operations-suite?date=${encodeURIComponent(date)}`, { credentials: "include" });
+      const response = await fetch(`/api/operations-suite${date ? `?date=${encodeURIComponent(date)}` : ""}`, { credentials: "include" });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || "Could not load the operations suite.");
+      if (!date && typeof body.productionDate === "string") setDate(body.productionDate);
       setData(body);
       setSettings({ season: body.settings?.season ?? "2025-26", shifts: (body.settings?.shiftConfig ?? ["A", "B", "C", "GENERAL"]).join(", ") });
     } catch (loadError) {

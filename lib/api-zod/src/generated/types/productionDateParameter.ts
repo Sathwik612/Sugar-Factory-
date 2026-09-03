@@ -7,6 +7,6 @@
  */
 
 /**
- * Factory-local production date; defaults to the latest available date
+ * Factory-local production date; defaults to the current factory-local reporting date
  */
 export type ProductionDateParameter = Date;

@@ -410,7 +410,7 @@ components:
     ProductionDate:
       name: date
       in: query
-      description: Factory-local production date; defaults to the latest available date
+      description: Factory-local production date; defaults to the current factory-local reporting date
       schema:
         type: string
         format: date
@@ -622,13 +622,20 @@ components:
       $ref: "#/components/schemas/DailyOperations"
     DashboardSummary:
       type: object
-      required: [factory, productionDate, dataStatus, kpis, exceptions, trend, ingestion]
+      required: [factory, productionDate, reportingTimezone, reportingAt, dataStatus, kpis, exceptions, trend, ingestion]
       properties:
         factory:
           type: string
         productionDate:
           type: string
           format: date
+        reportingTimezone:
+          type: string
+          description: IANA timezone used to resolve the reporting date and factory-facing timestamps
+        reportingAt:
+          type: string
+          format: date-time
+          description: Current reporting instant; interpret it using reportingTimezone
         dataStatus:
           type: string
           enum: [COMPLETE, PARTIAL, UNAVAILABLE]
@@ -715,7 +722,7 @@ components:
           format: date-time
     DailyReport:
       type: object
-      required: [id, factory, productionDate, reportVersion, executiveSummary, scorecard, exceptions, sources]
+      required: [id, factory, productionDate, reportingTimezone, reportingAt, reportVersion, executiveSummary, scorecard, exceptions, sources]
       properties:
         id:
           type: string
@@ -724,6 +731,13 @@ components:
         productionDate:
           type: string
           format: date
+        reportingTimezone:
+          type: string
+          description: IANA timezone used for the selected report period and factory-facing timestamps
+        reportingAt:
+          type: string
+          format: date-time
+          description: Current reporting instant; interpret it using reportingTimezone
         reportVersion:
           type: string
         generatedAt:

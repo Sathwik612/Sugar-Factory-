@@ -12,6 +12,7 @@
     "test:kpi": "pnpm --filter @workspace/scripts exec tsx ../tests/unit/kpi.test.ts",
     "test:workbook": "pnpm --filter @workspace/scripts exec tsx ../tests/unit/workbook-import.test.ts",
     "test:storage": "pnpm --filter @workspace/scripts exec tsx ../tests/unit/source-storage.test.ts",
+    "test:factory-time": "pnpm --filter @workspace/scripts exec tsx ../tests/unit/factory-time.test.ts",
     "test:browser": "playwright test",
     "test:offline-approvals": "bash tests/run-offline-approvals.sh",
     "dev:local": "bash ./scripts/dev-local.sh",

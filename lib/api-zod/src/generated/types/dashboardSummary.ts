@@ -14,6 +14,10 @@ import type { TrendPoint } from './trendPoint';
 export interface DashboardSummary {
   factory: string;
   productionDate: Date;
+  /** IANA timezone used to resolve the reporting date and factory-facing timestamps */
+  reportingTimezone: string;
+  /** Current reporting instant; interpret it using reportingTimezone */
+  reportingAt: Date;
   dataStatus: DashboardSummaryDataStatus;
   kpis: KpiCard[];
   exceptions: ExceptionSummary[];

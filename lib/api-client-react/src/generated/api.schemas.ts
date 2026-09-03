@@ -235,6 +235,10 @@ export interface IngestionSummary {
 export interface DashboardSummary {
   factory: string;
   productionDate: string;
+  /** IANA timezone used to resolve the reporting date and factory-facing timestamps */
+  reportingTimezone: string;
+  /** Current reporting instant; interpret it using reportingTimezone */
+  reportingAt: string;
   dataStatus: DashboardSummaryDataStatus;
   kpis: KpiCard[];
   exceptions: ExceptionSummary[];
@@ -288,6 +292,10 @@ export interface DailyReport {
   id: string;
   factory: string;
   productionDate: string;
+  /** IANA timezone used for the selected report period and factory-facing timestamps */
+  reportingTimezone: string;
+  /** Current reporting instant; interpret it using reportingTimezone */
+  reportingAt: string;
   reportVersion: string;
   generatedAt?: string;
   executiveSummary: string;
@@ -427,7 +435,7 @@ export interface SourceFileImport {
 }
 
 /**
- * Factory-local production date; defaults to the latest available date
+ * Factory-local production date; defaults to the current factory-local reporting date
  */
 export type ProductionDateParameter = string;
 
@@ -435,7 +443,7 @@ export type AuthorizationSessionHeaderParameter = string;
 
 export type GetDashboardParams = {
 /**
- * Factory-local production date; defaults to the latest available date
+ * Factory-local production date; defaults to the current factory-local reporting date
  */
 date?: ProductionDateParameter;
 };
