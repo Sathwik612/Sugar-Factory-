@@ -14,7 +14,7 @@ while ! pnpm --filter @workspace/db run push; do
 done
 
 if [ -n "${BOOTSTRAP_ADMIN_PASSWORD:-}" ] && [ "${BOOTSTRAP_ADMIN_PASSWORD}" != replace-with-* ]; then
-  node /app/scripts/bootstrap-admin.mjs
+  node /app/lib/db/bootstrap-admin.mjs
 fi
 
 exec node --enable-source-maps /app/dist/index.mjs

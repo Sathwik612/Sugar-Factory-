@@ -20,7 +20,8 @@ COPY --from=build /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 COPY --from=build /app/tsconfig.json ./tsconfig.json
 COPY --from=build /app/tsconfig.base.json ./tsconfig.base.json
 COPY --from=build /app/lib/db ./lib/db
-COPY scripts/bootstrap-admin.mjs ./scripts/bootstrap-admin.mjs
+COPY --from=build /app/lib/db/node_modules ./lib/db/node_modules
+COPY scripts/bootstrap-admin.mjs ./lib/db/bootstrap-admin.mjs
 COPY scripts/railway-start.sh ./scripts/railway-start.sh
 RUN mkdir -p /var/lib/sugar-factory/uploads && chown -R node:node /var/lib/sugar-factory
 RUN chmod 755 ./scripts/railway-start.sh
