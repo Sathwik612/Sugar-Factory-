@@ -60,7 +60,7 @@ router.post("/users", requireRoles("ADMIN"), async (req, res, next) => {
         firstName: username,
         role: body.role,
         department: body.department.trim().toUpperCase(),
-        isDemo: true,
+        isDemo: false,
       })
       .returning();
     await recordAudit(req, "CREATED_USER", "user", created.id, {

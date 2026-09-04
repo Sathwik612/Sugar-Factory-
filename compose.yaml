@@ -14,6 +14,7 @@ services:
       retries: 5
 
   api:
+    image: sugar-factory-api:local
     build:
       context: .
       dockerfile: docker/api.Dockerfile
@@ -29,7 +30,20 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:?Set CORS_ORIGIN}
       COOKIE_SECURE: ${COOKIE_SECURE:?Set COOKIE_SECURE=true behind HTTPS}
       TRUST_PROXY: ${TRUST_PROXY:-1}
+      FACTORY_TIMEZONE: ${FACTORY_TIMEZONE:-Asia/Kolkata}
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
+      PGPOOL_MAX: ${PGPOOL_MAX:-20}
+      PG_IDLE_TIMEOUT_MS: ${PG_IDLE_TIMEOUT_MS:-30000}
+      PG_CONNECT_TIMEOUT_MS: ${PG_CONNECT_TIMEOUT_MS:-5000}
+      PG_STATEMENT_TIMEOUT_MS: ${PG_STATEMENT_TIMEOUT_MS:-30000}
+      JSON_BODY_LIMIT: ${JSON_BODY_LIMIT:-1mb}
+      FORM_BODY_LIMIT: ${FORM_BODY_LIMIT:-256kb}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-300}
+      AUTH_RATE_LIMIT_WINDOW_MS: ${AUTH_RATE_LIMIT_WINDOW_MS:-900000}
+      AUTH_RATE_LIMIT_MAX: ${AUTH_RATE_LIMIT_MAX:-10}
+      READINESS_TIMEOUT_MS: ${READINESS_TIMEOUT_MS:-3000}
+      SHUTDOWN_TIMEOUT_MS: ${SHUTDOWN_TIMEOUT_MS:-10000}
       SOURCE_FILE_MAX_BYTES: ${SOURCE_FILE_MAX_BYTES:-10485760}
       STORAGE_PROVIDER: ${STORAGE_PROVIDER:?Set STORAGE_PROVIDER to s3 or local}
       STORAGE_LOCAL_PATH: ${STORAGE_LOCAL_PATH:-/var/lib/sugar-factory/uploads}
@@ -46,7 +60,46 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  db-migrate:
+    profiles: ["tools"]
+    image: sugar-factory-api:local
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    environment:
+      NODE_ENV: production
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: ${PGUSER:-sugar_factory}
+      PGPASSWORD: ${PGPASSWORD:?Set PGPASSWORD}
+      PGDATABASE: ${PGDATABASE:-sugar_factory}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["pnpm", "--filter", "@workspace/db", "run", "push"]
+
+  admin-bootstrap:
+    profiles: ["tools"]
+    image: sugar-factory-api:local
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: ${PGUSER:-sugar_factory}
+      PGPASSWORD: ${PGPASSWORD:?Set PGPASSWORD}
+      PGDATABASE: ${PGDATABASE:-sugar_factory}
+      BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-admin}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["node", "/app/scripts/bootstrap-admin.mjs"]
+
   web:
+    image: sugar-factory-web:local
     build:
       context: .
       dockerfile: docker/web.Dockerfile
@@ -57,6 +110,25 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  caddy:
+    profiles: ["https"]
+    image: caddy:2.10-alpine
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   source_uploads:
+  caddy_data:
+  caddy_config:

@@ -59,24 +59,48 @@ For local storage:
 
 The API refuses to start in production when the storage provider, database
 credentials, session secret, CORS origin, cookie security, or other required
-settings are missing. Demo seeding is disabled in production.
+settings are missing. Demo seeding is disabled in production. The production
+login accepts real database users; demo accounts are not required.
 
 ## First launch
 
 ```bash
-docker compose build
-docker compose up -d db
-docker compose run --rm api pnpm --filter @workspace/db run push
-docker compose up -d
-docker compose ps
-curl -fsS http://127.0.0.1:8080/api/readyz
+cp .env.production.example .env
+chmod 600 .env
+# Fill every replace-with-* value, set BOOTSTRAP_ADMIN_PASSWORD, and review
+# STORAGE_PROVIDER, CORS_ORIGIN, COOKIE_SECURE, and FACTORY_TIMEZONE.
+pnpm vps:validate
+pnpm vps:up
+```
+
+`vps:up` builds the images, starts PostgreSQL, applies the reviewed Drizzle
+schema, creates the first administrator without overwriting an existing
+account, starts the application, and runs health/readiness checks. It is safe
+to run again: the bootstrap command does not reset an existing administrator
+password. To run the individual steps, use:
+
+```bash
+docker compose --env-file .env up -d db
+docker compose --env-file .env --profile tools run --rm db-migrate
+docker compose --env-file .env --profile tools run --rm admin-bootstrap
+docker compose --env-file .env up -d
+pnpm vps:smoke
 ```
 
 The application is exposed only through the `web` service. Do not publish the
 database or API ports to the public internet. The web container serves the
 dashboard and proxies `/api/` to the API container.
 
-Place a host reverse proxy in front of port 8080. A minimal host Nginx shape is:
+For the simplest HTTPS setup, set `ENABLE_HTTPS=true`, set `DOMAIN` to the
+DNS name pointing at the VPS, and run `pnpm vps:up`. The optional Caddy
+profile obtains and renews certificates automatically:
+
+```bash
+ENABLE_HTTPS=true docker compose --env-file .env --profile https up -d
+```
+
+Alternatively, place a host reverse proxy in front of port 8080. A minimal
+host Nginx shape is:
 
 ```nginx
 server {
@@ -93,7 +117,9 @@ server {
 ```
 
 Set `WEB_BIND_ADDRESS=127.0.0.1` if the deployment should not bind the
-internal web service on every host interface.
+internal web service on every host interface. With `ENABLE_HTTPS=true`,
+`vps:up` still runs its local smoke test against the loopback web port; also
+check the public HTTPS URL after DNS and certificate issuance complete.
 
 ## Updates and rollback
 

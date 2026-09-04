@@ -2,7 +2,9 @@
 
 Validation scope: Sugar Factory Intelligence Platform, Bilagi Sugar Mill Ltd., Season 2025–26.
 
-This document records evidence available in the current workspace. It is not a substitute for a rehearsal on the target Linux/VPS environment with the intended PostgreSQL, storage, reverse-proxy, and operational controls.
+This document records evidence available in the current workspace and the
+Railway deployment configuration. It is not a substitute for a live Railway
+project rehearsal with production PostgreSQL, storage, HTTPS, and alerting.
 
 ## Evidence completed in this workspace
 
@@ -18,22 +20,27 @@ This document records evidence available in the current workspace. It is not a s
 | KPI and business logic | Existing KPI tests pass. |
 | Database operations | Existing backup and isolated restore rehearsal evidence remains available in `docs/RESTORE_REHEARSAL.md`. |
 | Local runtime smoke | API and web workflows restarted cleanly; authenticated API regression and browser offline/sync tests pass. |
-| Container validation | Existing API and web image build, compose validation, health/readiness, and restart evidence remains documented; container images were not rebuilt as part of this date/time-only validation pass. |
+| Container validation | API and web images build successfully with the migration/bootstrap tooling and optional HTTPS profile; compose configuration validates with production and tool profiles. |
+| Railway configuration | `railway.toml` selects the API image, Railway healthcheck, and restart policy; the web image honors Railway's injected `PORT` and a private API upstream. See `RAILWAY_DEPLOYMENT.md`. |
+| Railway image/runtime checks (2026-09-04 UTC) | API and web Docker builds passed. The web image served the dashboard on an injected test port and rendered a runtime-configured upstream; the API image reached its bounded database-migration retry guard with an unavailable test database. |
 | Security | Existing dependency, SAST, and HoundDog findings remain documented in `docs/SECURITY_SCAN.md`. |
 
 ## Validation still required before a production decision
 
-- Run the complete validation matrix on a clean Linux/VPS-like host without Replit services.
-- Validate the chosen production PostgreSQL instance, migrations, least-privilege credentials, backups, restore, and rollback on the target host.
-- Validate the selected S3-compatible provider or persistent local storage, including permissions, retention, source-file upload, and restore behavior.
-- Validate Nginx or Caddy, real DNS, HTTPS certificates, forwarded headers, cookie security, CORS, upload limits, and renewal behavior.
+- Create the Railway project, Postgres service, API service, and web service from the reviewed branch.
+- Validate Railway variables, database migrations, least-privilege credentials, backups, restore, and rollback in the target project.
+- Validate the selected S3-compatible provider or Railway Volume, including permissions, retention, source-file upload, and restore behavior.
+- Validate Railway custom DNS/HTTPS, forwarded headers, cookie security, CORS, upload limits, and deployment recovery.
 - Exercise login, RBAC, Daily Operations approval/return/resubmission/locking, lineage, alerts, notifications, PDF, CSV, PWA reconnect/sync, and historical date selection through the deployed UI.
 - Run authenticated concurrency tests that cover API writes, Excel imports, approval transitions, alerts, and notification polling rather than readiness requests only.
-- Validate restart and host reboot recovery, backup scheduling, restore rehearsal, and rollback using the actual deployment procedure.
+- Validate service restart/redeploy recovery, managed Postgres backup scheduling, restore rehearsal, and rollback using the actual Railway procedure. A host reboot is not available on Railway.
 - Capture evidence from the target environment for mobile/PWA behavior, browser console cleanliness, and monitoring/alerting.
 
-The remaining items are material production-validation gaps rather than implementation placeholders. The workspace evidence is therefore insufficient for a positive VPS deployment decision.
+The remaining items are material external Railway-validation gaps rather than
+implementation placeholders. No Railway project URL, service deployment, or
+production credentials were available in this workspace, so the live
+deployment and authenticated evidence could not be recorded here.
 
 ## Final verdict
 
-VPS PRODUCTION READY: NO
+RAILWAY PRODUCTION READY: NO — configuration is committed, live deployment validation remains.

@@ -120,7 +120,7 @@ router.post("/login", async (req: Request, res: Response, next) => {
     const [user] = await db
       .select()
       .from(usersTable)
-      .where(and(eq(usersTable.username, normalizedUsername), eq(usersTable.isDemo, true)))
+      .where(eq(usersTable.username, normalizedUsername))
       .limit(1);
 
     if (!user || !user.passwordHash) {
